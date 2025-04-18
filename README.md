@@ -372,3 +372,4 @@ npm start
 - Tailwind CSS
 - next-themes (thème clair/sombre)
 - heroicons (icônes)
+# Daznode
