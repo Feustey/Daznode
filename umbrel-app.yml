@@ -1,0 +1,24 @@
+manifestVersion: 1
+id: daznode
+name: Daznode
+tagline: Monitoring performant pour votre nœud Lightning
+icon: https://i.imgur.com/your-icon.png
+category: Lightning
+version: "0.1.0"
+port: 8000
+description: >-
+  Daznode est une application de monitoring pour les nœuds Lightning Network.
+  Elle permet de suivre les performances d'un nœud, d'analyser le réseau et d'optimiser la gestion des canaux.
+  Compatible avec LND, c-lightning et autres implémentations majeures.
+developer: Equipe Daznode
+website: https://github.com/yourusername/daznode
+dependencies:
+  - lightning
+repo: https://github.com/yourusername/daznode
+support: https://github.com/yourusername/daznode/issues
+permissions:
+  - lnd
+  - bitcoind
+path: ""
+defaultUsername: ""
+defaultPassword: ""

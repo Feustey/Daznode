@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: daznode:latest
+    container_name: daznode
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./data:/data
+    env_file:
+      - .env
+    environment:
+      - TZ=UTC
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - daznode-network
+
+  # Décommentez cette section si vous souhaitez utiliser une base de données PostgreSQL
+  # db:
+  #   image: postgres:14
+  #   container_name: daznode-db
+  #   restart: unless-stopped
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=postgres
+  #     - POSTGRES_DB=daznode
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - daznode-network
+
+networks:
+  daznode-network:
+    driver: bridge
+# Décommentez si vous utilisez PostgreSQL
+# volumes:
+#   postgres_data:
