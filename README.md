@@ -297,79 +297,161 @@ Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 
 Fait avec ⚡️ par l'équipe Daznode
 
-# Daznode - Gestionnaire de Nœuds Lightning Network
+# Daznode - Gestionnaire de nœud Lightning Network
 
-Application de gestion et de surveillance des nœuds Lightning Network.
+Daznode est un ensemble d'outils pour gérer, surveiller et analyser un nœud Lightning Network.
 
-## Structure du projet
+## Fonctionnalités
 
-```
-app/
-├── components/       # Composants React réutilisables
-│   ├── ui/           # Composants UI de base (boutons, inputs, etc.)
-│   └── ...           # Autres composants
-├── contexts/         # Contextes React pour l'état global
-├── hooks/            # Hooks personnalisés
-├── lib/              # Fonctions utilitaires
-├── models/           # Modèles de données
-├── types/            # Définitions de types TypeScript
-└── ...               # Pages de l'application
-```
+- **Surveillance de nœud** : Visualisation de l'état du nœud, des canaux et de la liquidité
+- **Analyse de performance** : Suivi des forwards, des frais et de la rentabilité
+- **Optimisation** : Suggestions pour l'équilibrage des canaux et l'ajustement des frais
+- **Visualisation** : Exportation de données pour tableaux de bord et graphiques
+- **Interface CLI** : Interaction simple via la ligne de commande
+- **API REST** : Exposez les fonctionnalités via une API web
 
-## Convention d'importation
+## Installation
 
-Pour assurer la cohérence, utilisez toujours les alias d'importation définis dans `tsconfig.json` :
-
-```typescript
-// ✅ Importations correctes
-import { Button } from "@components/ui/button";
-import { useSettings } from "@contexts/SettingsContext";
-import { cn } from "@lib/utils";
-
-// ❌ Importations à éviter (chemins relatifs compliqués)
-import { Button } from "../../components/ui/button";
-import { useSettings } from "../contexts/SettingsContext";
+1. Cloner le dépôt :
+```bash
+git clone https://github.com/yourusername/daznode.git
+cd daznode
 ```
 
-## Règles de développement
+2. Installer les dépendances :
+```bash
+pip install -r requirements.txt
+```
 
-1. **Structure du code** : Ne jamais dupliquer la structure du projet. Tous les composants doivent être dans `/app/components`.
+3. Configurer les accès à votre nœud LND dans le fichier `.env` :
+```
+LND_GRPC_HOST=localhost:10009
+LND_TLS_CERT_PATH=/path/to/tls.cert
+LND_MACAROON_PATH=/path/to/admin.macaroon
+```
 
-2. **CSS et styling** : Utiliser les classes Tailwind CSS et les variables définies dans `globals.css`.
+## Utilisation du CLI
 
-3. **Conventions de nommage** :
+Daznode fournit une interface en ligne de commande complète pour interagir avec votre nœud.
 
-   - Composants : PascalCase (ex: `Button.tsx`)
-   - Hooks : camelCase commençant par "use" (ex: `useToast.ts`)
-   - Utilitaires : camelCase (ex: `utils.ts`)
-
-4. **Création de nouveaux composants** :
-   - Vérifier d'abord si un composant similaire existe déjà
-   - Observer les composants existants pour suivre les conventions du projet
-   - Utiliser les alias d'importation pour éviter les chemins relatifs complexes
-
-## Développement
+### Informations de base
 
 ```bash
-# Installation des dépendances
-npm install
+# Afficher les informations du nœud
+./daznode-cli info
 
-# Démarrage du serveur de développement
-npm run dev
+# Lister les canaux actifs
+./daznode-cli channels list
 
-# Build pour la production
-npm run build
-
-# Démarrage en mode production
-npm start
+# Lister tous les canaux
+./daznode-cli channels list --all
 ```
 
-## Dépendances principales
+### Métriques et statistiques
 
-- Next.js 15.x
-- React 18.x
-- TypeScript
-- Tailwind CSS
-- next-themes (thème clair/sombre)
-- heroicons (icônes)
+```bash
+# Collecter les métriques du nœud
+./daznode-cli metrics collect
+
+# Créer un snapshot quotidien
+./daznode-cli metrics collect --daily
+
+# Exporter les métriques en JSON
+./daznode-cli metrics collect --export json
+```
+
+### Visualisations
+
+```bash
+# Générer un dataset de graphe réseau
+./daznode-cli viz network
+
+# Exporter au format JSON
+./daznode-cli viz network --export json --output network.json
+
+# Générer une heatmap de routage (par heure, jour ou semaine)
+./daznode-cli viz heatmap --resolution hour
+
+# Générer des recommandations d'optimisation de frais
+./daznode-cli viz fees
+```
+
+### Analyse du réseau
+
+```bash
+# Afficher les statistiques globales du réseau Lightning
+./daznode-cli network stats
+
+# Afficher les détails d'un nœud spécifique
+./daznode-cli network node 03abcdef...
+```
+
+## API REST
+
+Daznode expose également ses fonctionnalités via une API REST, ce qui permet l'intégration avec d'autres applications ou la création d'interfaces utilisateur personnalisées.
+
+### Lancement du serveur API
+
+```bash
+# Lancer l'API sur localhost:8000
+./run_api.py
+
+# Lancer l'API sur une interface et un port spécifiques
+./run_api.py --host 0.0.0.0 --port 8080
+
+# Activer le mode développement avec rechargement automatique
+./run_api.py --reload
+```
+
+### Endpoints de l'API
+
+L'API est documentée automatiquement et accessible via l'interface Swagger UI à l'adresse `/docs` ou ReDoc à l'adresse `/redoc`.
+
+Voici quelques endpoints principaux :
+
+#### Informations sur le nœud
+- `GET /api/v1/node/info` - Informations sur le nœud
+- `GET /api/v1/node/metrics` - Métriques du nœud
+- `GET /api/v1/status` - État du nœud et des services
+
+#### Canaux
+- `GET /api/v1/channels` - Liste des canaux
+- `GET /api/v1/channels/metrics` - Métriques des canaux
+- `GET /api/v1/channels/performance` - Performance des canaux
+
+#### Forwarding
+- `GET /api/v1/forwarding` - Historique de forwarding
+- `GET /api/v1/forwarding/metrics` - Métriques de forwarding
+- `GET /api/v1/forwarding/heatmap` - Heatmap de routage
+
+#### Optimisation
+- `GET /api/v1/optimization/fees` - Suggestions d'optimisation de frais
+
+#### Réseau
+- `GET /api/v1/network/graph` - Graphe du réseau local
+- `GET /api/v1/network/stats` - Statistiques du réseau
+- `GET /api/v1/network/node/{pubkey}` - Détails d'un nœud spécifique
+
+#### Métriques et rapports
+- `POST /api/v1/metrics/snapshot` - Créer un snapshot quotidien
+- `GET /api/v1/reports/{report_type}` - Générer un rapport périodique
+
+## Modules
+
+- **lnd_client.py** : Client pour interagir avec un nœud LND
+- **lnrouter_client.py** : Client pour l'API LNRouter.app
+- **metrics_collector.py** : Collecteur de métriques pour le nœud
+- **node_aggregator.py** : Agrégateur de données sur les nœuds et canaux
+- **visualization_exporter.py** : Exportateur pour visualisations et dashboards
+- **cli.py** : Interface en ligne de commande
+- **api.py** : API REST avec FastAPI
+
+## Contributions
+
+Les contributions sont bienvenues ! N'hésitez pas à ouvrir une issue ou une pull request.
+
+## Licence
+
+Ce projet est sous licence MIT.
+
 # Daznode

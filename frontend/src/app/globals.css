@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background-dark: #0F0F14;
+  --card-dark: #1F1F28;
+  --accent-blue: #3B82F6;
+  --accent-red: #EF4444;
+  --text-primary: #FFFFFF;
+  --text-secondary: #9CA3AF;
+}
+
+body {
+  background-color: var(--background-dark);
+  color: var(--text-primary);
+}
+
+@layer components {
+  .nav-item {
+    @apply px-4 py-2 font-medium hover:text-accent-blue transition-colors;
+  }
+  
+  .nav-item-active {
+    @apply px-4 py-2 font-medium text-accent-blue border-b-2 border-accent-blue;
+  }
+  
+  .card {
+    @apply bg-card-dark rounded-lg shadow-md p-4;
+  }
+  
+  .stat-value {
+    @apply text-xl font-bold;
+  }
+  
+  .stat-label {
+    @apply text-sm text-text-secondary;
+  }
+}

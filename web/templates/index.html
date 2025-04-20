@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daznode - Tableau de bord Lightning Network</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="/static/img/favicon.ico" type="image/x-icon">
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome pour les icônes -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css" rel="stylesheet">
+    
+    <!-- Style personnalisé -->
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div class="d-flex wrapper">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <img src="/static/img/logo.png" alt="Daznode Logo" class="logo">
+                <h3>Daznode</h3>
+            </div>
+            
+            <div class="sidebar-content">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/">
+                            <i class="fas fa-tachometer-alt"></i> Tableau de bord
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/channels">
+                            <i class="fas fa-bolt"></i> Canaux
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/forwarding">
+                            <i class="fas fa-exchange-alt"></i> Forwarding
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/peers">
+                            <i class="fas fa-users"></i> Pairs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/recommendations">
+                            <i class="fas fa-lightbulb"></i> Recommandations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/settings">
+                            <i class="fas fa-cog"></i> Paramètres
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="sidebar-footer">
+                <span id="connectionStatus">
+                    <i class="fas fa-circle text-secondary"></i> Non connecté
+                </span>
+                <small class="text-muted">v0.1.0</small>
+            </div>
+        </div>
+        
+        <!-- Contenu principal -->
+        <div class="content-wrapper">
+            <div class="container-fluid p-4">
+                <!-- En-tête -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h1 class="h3">Tableau de bord</h1>
+                        <p class="text-muted">Vue d'ensemble de votre nœud Lightning</p>
+                    </div>
+                    <div>
+                        <button id="refreshButton" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i> Actualiser
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Information nœud -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Informations du nœud</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <small class="text-muted d-block">Nom</small>
+                                <h6 id="nodeName">Chargement...</h6>
+                            </div>
+                            <div class="col-md-5 mb-3">
+                                <small class="text-muted d-block">Identifiant</small>
+                                <h6 id="nodeId">Chargement...</h6>
+                            </div>
+                            <div class="col-md-2 mb-3">
+                                <small class="text-muted d-block">Version</small>
+                                <h6 id="nodeVersion">Chargement...</h6>
+                            </div>
+                            <div class="col-md-2 mb-3">
+                                <small class="text-muted d-block">Hauteur de bloc</small>
+                                <h6 id="blockHeight">Chargement...</h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Résumé des balances et canaux -->
+                <div class="row">
+                    <!-- Balances -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Balances</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Balance totale</small>
+                                            <h4 id="totalBalance">Chargement...</h4>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Balance confirmée</small>
+                                            <h6 id="confirmedBalance">Chargement...</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Balance canaux</small>
+                                            <h6 id="channelBalance">Chargement...</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Balance non confirmée</small>
+                                            <h6 id="unconfirmedBalance">Chargement...</h6>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Canaux -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Canaux</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Canaux totaux</small>
+                                            <h4 id="totalChannels">Chargement...</h4>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Capacité totale</small>
+                                            <h4 id="totalCapacity">Chargement...</h4>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Canaux actifs</small>
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge bg-success me-2">Actif</span>
+                                                <h6 id="activeChannels">Chargement...</h6>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Canaux inactifs</small>
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge bg-danger me-2">Inactif</span>
+                                                <h6 id="inactiveChannels">Chargement...</h6>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Graphiques -->
+                <div class="row">
+                    <!-- Graphique d'évolution des balances -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Évolution des balances</h5>
+                            </div>
+                            <div class="card-body chart-container">
+                                <canvas id="balanceChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Graphique de distribution des canaux -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Distribution des canaux par capacité</h5>
+                            </div>
+                            <div class="card-body chart-container">
+                                <canvas id="channelDistributionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <!-- Activité de forwarding -->
+                    <div class="col-lg-8 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Activité de forwarding</h5>
+                            </div>
+                            <div class="card-body chart-container">
+                                <canvas id="forwardingChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Statistiques de forwarding -->
+                    <div class="col-lg-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Statistiques de forwarding</h5>
+                            </div>
+                            <div class="card-body" id="forwardingStats">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Nombre total</small>
+                                            <h5 id="forwardingCount">Chargement...</h5>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Taux de réussite</small>
+                                            <h5 id="forwardingSuccessRate">Chargement...</h5>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Volume transféré</small>
+                                            <h5 id="forwardingVolume">Chargement...</h5>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <small class="text-muted">Frais collectés</small>
+                                            <h5 id="forwardingFees">Chargement...</h5>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tableau des canaux -->
+                <div class="row">
+                    <div class="col-lg-8 mb-4">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">Top canaux par capacité</h5>
+                                <a href="/channels" class="btn btn-sm btn-primary">Voir tous</a>
+                            </div>
+                            <div class="card-body table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Nœud</th>
+                                            <th>Alias</th>
+                                            <th>Capacité</th>
+                                            <th>Balance locale</th>
+                                            <th>% Local</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="channelsTableBody">
+                                        <tr>
+                                            <td colspan="5" class="text-center">Chargement...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recommandations -->
+                    <div class="col-lg-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">Recommandations</h5>
+                                <a href="/recommendations" class="btn btn-sm btn-primary">Voir toutes</a>
+                            </div>
+                            <div class="card-body" id="recommendationsContainer">
+                                <p class="text-center">Chargement...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pied de page -->
+                <footer class="mt-5">
+                    <div class="text-center">
+                        <p class="text-muted">
+                            Daznode &copy; 2023 - Tableau de bord Lightning Network
+                            <br>
+                            <small>Propulsé par <a href="https://github.com/lightningnetwork/lnd" target="_blank">LND</a></small>
+                        </p>
+                    </div>
+                </footer>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Script personnalisé -->
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html> 

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daznode - Tableau de bord Lightning Network</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <img src="static/images/lightning.svg" width="30" height="30" class="d-inline-block align-top me-2" alt="Logo">
+                Daznode
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#">Tableau de bord</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="channels">Canaux</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="forwarding">Forwarding</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="network">Réseau</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="optimization">Optimisation</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="alert alert-info" role="alert">
+                    <div class="d-flex align-items-center">
+                        <div id="connection-status" class="me-2">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </div>
+                        <div>
+                            Connexion au nœud...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboard-page" class="page active">
+            <div class="row mb-4">
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Canaux actifs</h5>
+                            <h2 id="active-channels" class="metric">--</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Capacité totale</h5>
+                            <h2 id="total-capacity" class="metric">--</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Forwards (24h)</h5>
+                            <h2 id="total-forwards" class="metric">--</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Frais gagnés (24h)</h5>
+                            <h2 id="total-fees" class="metric">--</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            Activité de forwarding (24h)
+                        </div>
+                        <div class="card-body">
+                            <canvas id="forwarding-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            Distribution des liquidités
+                        </div>
+                        <div class="card-body">
+                            <canvas id="liquidity-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Canaux les plus actifs</span>
+                            <a href="#" data-page="channels" class="btn btn-sm btn-primary">Voir tous</a>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Pair</th>
+                                            <th>Capacité</th>
+                                            <th>Balance</th>
+                                            <th>Forwards</th>
+                                            <th>Frais</th>
+                                            <th>État</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="top-channels">
+                                        <tr>
+                                            <td colspan="7" class="text-center">Chargement des données...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Channels Page -->
+        <div id="channels-page" class="page">
+            <h1>Canaux</h1>
+            <p>Contenu de la page Canaux...</p>
+        </div>
+
+        <!-- Forwarding Page -->
+        <div id="forwarding-page" class="page">
+            <h1>Forwarding</h1>
+            <p>Contenu de la page Forwarding...</p>
+        </div>
+
+        <!-- Network Page -->
+        <div id="network-page" class="page">
+            <h1>Réseau</h1>
+            <p>Contenu de la page Réseau...</p>
+        </div>
+
+        <!-- Optimization Page -->
+        <div id="optimization-page" class="page">
+            <h1>Optimisation</h1>
+            <p>Contenu de la page Optimisation...</p>
+        </div>
+    </div>
+
+    <footer class="footer mt-5 py-3 bg-light">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="text-muted">Daznode v0.1.0 | Gestionnaire de nœud Lightning Network</p>
+                </div>
+                <div class="col-md-6 text-end">
+                    <a href="https://github.com/yourname/daznode" target="_blank" class="text-muted">GitHub</a> |
+                    <a href="/api/v1/docs" target="_blank" class="text-muted">API</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="static/js/api.js"></script>
+    <script src="static/js/dashboard.js"></script>
+    <script src="static/js/app.js"></script>
+</body>
+</html> 

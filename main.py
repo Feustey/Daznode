@@ -1,16 +1,15 @@
 import uvicorn
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from app.core.config import settings
-from app.api.api_v1.api import api_router
+from core.config import settings
+from api.v1.endpoints import node
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Daznode - Application de monitoring pour nœuds lightning",
     version="0.1.0",
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
 # Configuration CORS
@@ -22,11 +21,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Montage des fichiers statiques
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Inclure les routeurs
+app.include_router(node.router, prefix=settings.API_V1_STR)
 
-# Inclusion des routes API
-app.include_router(api_router, prefix=settings.API_V1_STR)
+@app.get("/")
+async def root():
+    return {"message": "Bienvenue sur Daznode API"}
+
+@app.get("/api/v1/health")
+async def health_check():
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
