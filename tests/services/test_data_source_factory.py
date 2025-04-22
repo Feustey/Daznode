@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 import asyncio
+from unittest.mock import call
 
 from services.data_source_factory import DataSourceFactory
 from services.local_data_source import LocalDataSource
@@ -12,11 +13,27 @@ class TestDataSourceFactory:
     @pytest.fixture
     def mock_clients(self):
         """Crée les mocks des clients pour les tests"""
+        health_manager = MagicMock(spec=HealthCheckManager)
+        health_manager.set_clients = MagicMock()
+        health_manager.check_all_sources = AsyncMock()
+        health_manager.start_background_checks = AsyncMock()
+        health_manager.stop_background_checks = AsyncMock()
+        health_manager.is_source_available = MagicMock(return_value=True)
+        health_manager.get_all_statuses = MagicMock(return_value={
+            "timestamp": "2024-03-21T10:00:00Z",
+            "sources": {
+                "lnd": {"status": "ok"},
+                "mcp": {"status": "ok"},
+                "lnrouter": {"status": "ok"}
+            },
+            "global_status": "ok"
+        })
+        
         return {
             "lnd_client": MagicMock(),
             "mcp_service": MagicMock(),
             "lnrouter_client": MagicMock(),
-            "health_manager": MagicMock(spec=HealthCheckManager)
+            "health_manager": health_manager
         }
     
     @pytest.fixture
@@ -29,6 +46,17 @@ class TestDataSourceFactory:
         DataSourceFactory._mcp_service = None
         DataSourceFactory._health_manager = None
         DataSourceFactory._initialized = False
+        
+        # Réinitialiser les mocks
+        for client in mock_clients.values():
+            if hasattr(client, 'reset_mock'):
+                client.reset_mock()
+            if isinstance(client, MagicMock):
+                client.side_effect = None
+                client.return_value = None
+        
+        # Réinitialiser le health manager spécifiquement
+        mock_clients["health_manager"].is_source_available.return_value = True
         
         yield
         
@@ -133,19 +161,31 @@ class TestDataSourceFactory:
             mock_clients["health_manager"].is_source_available.assert_any_call("local")
     
     @pytest.mark.asyncio
-    async def test_get_data_source_caching(self, mock_clients, setup_factory):
-        """Test que les sources de données sont correctement mises en cache"""
+    async def test_get_data_source_caching(self, setup_factory, mock_clients):
+        """Vérifie que les sources de données sont correctement mises en cache"""
         with patch('services.data_source_factory.LNDClient', return_value=mock_clients["lnd_client"]), \
              patch('services.data_source_factory.MCPService', return_value=mock_clients["mcp_service"]), \
-             patch('services.data_source_factory.LNRouterClient', return_value=mock_clients["lnrouter_client"]):
+             patch('services.data_source_factory.LNRouterClient', return_value=mock_clients["lnrouter_client"]), \
+             patch('services.data_source_factory.HealthCheckManager', return_value=mock_clients["health_manager"]):
             
-            # Première création
-            source1 = DataSourceFactory.get_data_source("local")
-            # Deuxième appel avec le même type
-            source2 = DataSourceFactory.get_data_source("local")
+            # Initialiser la factory
+            await DataSourceFactory.initialize()
             
-            assert source1 is source2
-            assert len(DataSourceFactory._sources) == 1
+            # Premier appel pour obtenir une source
+            source1 = DataSourceFactory.get_data_source()
+            assert source1 is not None
+            
+            # Deuxième appel - devrait retourner la même instance
+            source2 = DataSourceFactory.get_data_source()
+            assert source2 is not None
+            assert source1 is source2  # Vérifie que c'est la même instance
+            
+            # Vérifie que le health manager a été appelé pour chaque appel à get_data_source
+            assert mock_clients["health_manager"].is_source_available.call_count == 2
+            mock_clients["health_manager"].is_source_available.assert_has_calls([
+                call("local"),
+                call("local")
+            ])
     
     @pytest.mark.asyncio
     async def test_get_data_source_auto_without_health_manager(self, mock_clients, setup_factory):
@@ -157,7 +197,11 @@ class TestDataSourceFactory:
              patch('core.config.settings.MCP_API_URL', 'https://api.test'):
             
             # Configurer le mock MCP pour simuler une réponse réussie
-            mock_clients["mcp_service"].get_network_stats = AsyncMock(return_value={"success": True})
+            mock_clients["mcp_service"].get_network_stats = MagicMock(return_value={"success": True})
+            
+            # Réinitialiser l'état de la factory
+            DataSourceFactory._health_manager = None
+            DataSourceFactory._initialized = False
             
             source = DataSourceFactory.get_data_source("auto")
             assert isinstance(source, MCPDataSource)

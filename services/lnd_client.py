@@ -112,9 +112,9 @@ class LNDClient:
                 for c in response.chains:
                     try:
                         if isinstance(c, str):
-                            chains.append({"chain": c, "network": "mainnet"})
+                            chains.append(c)
                         else:
-                            chains.append({"chain": c.chain, "network": c.network})
+                            chains.append(c.chain)
                     except AttributeError:
                         pass
 
@@ -162,14 +162,19 @@ class LNDClient:
             inactive_only: Ne récupérer que les canaux inactifs
         """
         try:
-            request = ln.ListChannelsRequest(
-                active_only=active_only,
-                inactive_only=inactive_only
-            )
+            request = ln.ListChannelsRequest()
+            if active_only:
+                request.active_only = True
+            elif inactive_only:
+                request.inactive_only = True
             response = self.stub.ListChannels(request)
             
             channels = []
             for channel in response.channels:
+                if active_only and not channel.active:
+                    continue
+                if inactive_only and channel.active:
+                    continue
                 # Gérer les HTLCs de manière sécurisée
                 pending_htlcs = []
                 if hasattr(channel, 'pending_htlcs'):
@@ -202,42 +207,22 @@ class LNDClient:
                     "capacity": channel.capacity,
                     "local_balance": channel.local_balance,
                     "remote_balance": channel.remote_balance,
-                    "commit_fee": channel.commit_fee,
-                    "commit_weight": channel.commit_weight,
-                    "fee_per_kw": channel.fee_per_kw,
                     "unsettled_balance": channel.unsettled_balance,
-                    "total_satoshis_sent": channel.total_satoshis_sent,
-                    "total_satoshis_received": channel.total_satoshis_received,
-                    "num_updates": channel.num_updates,
-                    "pending_htlcs": pending_htlcs,
                     "active": channel.active,
                     "private": channel.private,
                     "initiator": channel.initiator,
+                    "total_satoshis_sent": channel.total_satoshis_sent,
+                    "total_satoshis_received": channel.total_satoshis_received,
+                    "num_updates": channel.num_updates,
+                    "commit_fee": channel.commit_fee,
+                    "commit_weight": channel.commit_weight,
+                    "fee_per_kw": channel.fee_per_kw,
                     "chan_status_flags": channel.chan_status_flags,
                     "local_chan_reserve_sat": channel.local_chan_reserve_sat,
                     "remote_chan_reserve_sat": channel.remote_chan_reserve_sat,
-                    "static_remote_key": channel.static_remote_key,
-                    "lifetime": channel.lifetime,
-                    "uptime": channel.uptime,
-                    "close_address": channel.close_address,
-                    "push_amount_sat": channel.push_amount_sat,
-                    "thaw_height": channel.thaw_height,
-                    "local_constraints": {
-                        "csv_delay": channel.local_constraints.csv_delay,
-                        "chan_reserve_sat": channel.local_constraints.chan_reserve_sat,
-                        "dust_limit_sat": channel.local_constraints.dust_limit_sat,
-                        "max_pending_amt_msat": channel.local_constraints.max_pending_amt_msat,
-                        "min_htlc_msat": channel.local_constraints.min_htlc_msat,
-                        "max_accepted_htlcs": channel.local_constraints.max_accepted_htlcs
-                    },
-                    "remote_constraints": {
-                        "csv_delay": channel.remote_constraints.csv_delay,
-                        "chan_reserve_sat": channel.remote_constraints.chan_reserve_sat,
-                        "dust_limit_sat": channel.remote_constraints.dust_limit_sat,
-                        "max_pending_amt_msat": channel.remote_constraints.max_pending_amt_msat,
-                        "min_htlc_msat": channel.remote_constraints.min_htlc_msat,
-                        "max_accepted_htlcs": channel.remote_constraints.max_accepted_htlcs
-                    }
+                    "local_balance_msat": channel.local_balance_msat,
+                    "remote_balance_msat": channel.remote_balance_msat,
+                    "pending_htlcs": pending_htlcs
                 })
             
             return channels
@@ -402,8 +387,7 @@ class LNDClient:
             request = ln.ForwardingHistoryRequest(
                 start_time=start_time,
                 end_time=end_time,
-                page_offset=offset,
-                num_max_events=limit
+                limit=limit
             )
             
             response = self.stub.ForwardingHistory(request)
@@ -412,8 +396,8 @@ class LNDClient:
             for event in response.forwarding_events:
                 forwarding_events.append({
                     "timestamp": datetime.fromtimestamp(event.timestamp).isoformat(),
-                    "chan_id_in": event.chan_id_in,
-                    "chan_id_out": event.chan_id_out,
+                    "chan_id_in": str(event.chan_id_in),
+                    "chan_id_out": str(event.chan_id_out),
                     "amt_in": event.amt_in,
                     "amt_out": event.amt_out,
                     "fee": event.fee,

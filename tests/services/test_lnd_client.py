@@ -105,6 +105,8 @@ class TestLNDClient(unittest.TestCase):
         mock_channel1.chan_status_flags = "normal"
         mock_channel1.local_chan_reserve_sat = 10000
         mock_channel1.remote_chan_reserve_sat = 10000
+        mock_channel1.local_balance_msat = 600000000
+        mock_channel1.remote_balance_msat = 400000000
         
         # Créer un mock pour un autre canal (inactif)
         mock_channel2 = Mock()
@@ -117,6 +119,17 @@ class TestLNDClient(unittest.TestCase):
         mock_channel2.active = False
         mock_channel2.private = True
         mock_channel2.initiator = False
+        mock_channel2.total_satoshis_sent = 0
+        mock_channel2.total_satoshis_received = 0
+        mock_channel2.num_updates = 0
+        mock_channel2.commit_fee = 0
+        mock_channel2.commit_weight = 0
+        mock_channel2.fee_per_kw = 0
+        mock_channel2.chan_status_flags = "inactive"
+        mock_channel2.local_chan_reserve_sat = 20000
+        mock_channel2.remote_chan_reserve_sat = 20000
+        mock_channel2.local_balance_msat = 800000000
+        mock_channel2.remote_balance_msat = 1200000000
         
         # Configurer le mock pour renvoyer ces canaux
         mock_channels.channels = [mock_channel1, mock_channel2]
@@ -136,12 +149,25 @@ class TestLNDClient(unittest.TestCase):
         self.assertEqual(result[0]["active"], True)
         self.assertEqual(result[0]["private"], False)
         self.assertEqual(result[0]["initiator"], True)
+        self.assertEqual(result[0]["total_satoshis_sent"], 500000)
+        self.assertEqual(result[0]["total_satoshis_received"], 300000)
+        self.assertEqual(result[0]["num_updates"], 100)
+        self.assertEqual(result[0]["commit_fee"], 1000)
+        self.assertEqual(result[0]["commit_weight"], 600)
+        self.assertEqual(result[0]["fee_per_kw"], 500)
+        self.assertEqual(result[0]["chan_status_flags"], "normal")
+        self.assertEqual(result[0]["local_chan_reserve_sat"], 10000)
+        self.assertEqual(result[0]["remote_chan_reserve_sat"], 10000)
+        self.assertEqual(result[0]["local_balance_msat"], 600000000)
+        self.assertEqual(result[0]["remote_balance_msat"], 400000000)
         
         # Vérifier le second canal
         self.assertEqual(result[1]["channel_id"], "789012")
         self.assertEqual(result[1]["active"], False)
         self.assertEqual(result[1]["private"], True)
         self.assertEqual(result[1]["initiator"], False)
+        self.assertEqual(result[1]["local_balance_msat"], 800000000)
+        self.assertEqual(result[1]["remote_balance_msat"], 1200000000)
         
         # Tester avec seulement les canaux actifs
         result_active = self.lnd_client.list_channels(active_only=True)
@@ -169,6 +195,8 @@ class TestLNDClient(unittest.TestCase):
         mock_event1.amt_out = 990
         mock_event1.fee = 10
         mock_event1.fee_msat = 10000
+        mock_event1.amt_in_msat = 1000000
+        mock_event1.amt_out_msat = 990000
         
         mock_event2 = Mock()
         mock_event2.timestamp = 1648230000
@@ -178,9 +206,12 @@ class TestLNDClient(unittest.TestCase):
         mock_event2.amt_out = 1980
         mock_event2.fee = 20
         mock_event2.fee_msat = 20000
+        mock_event2.amt_in_msat = 2000000
+        mock_event2.amt_out_msat = 1980000
         
         # Configurer le mock pour renvoyer ces événements
         mock_forwarding.forwarding_events = [mock_event1, mock_event2]
+        mock_forwarding.last_offset_index = 0
         
         # Appeler la méthode à tester
         start_time = int(datetime(2022, 3, 1).timestamp())
@@ -193,17 +224,27 @@ class TestLNDClient(unittest.TestCase):
         
         # Vérifier le premier événement
         event1 = result["forwarding_events"][0]
-        self.assertEqual(event1["timestamp"], "1648220000")
+        self.assertEqual(event1["timestamp"], datetime.fromtimestamp(1648220000).isoformat())
         self.assertEqual(event1["chan_id_in"], "123456")
         self.assertEqual(event1["chan_id_out"], "789012")
         self.assertEqual(event1["amt_in"], 1000)
         self.assertEqual(event1["amt_out"], 990)
         self.assertEqual(event1["fee"], 10)
         self.assertEqual(event1["fee_msat"], 10000)
+        self.assertEqual(event1["amt_in_msat"], 1000000)
+        self.assertEqual(event1["amt_out_msat"], 990000)
         
         # Vérifier le second événement
         event2 = result["forwarding_events"][1]
-        self.assertEqual(event2["timestamp"], "1648230000")
+        self.assertEqual(event2["timestamp"], datetime.fromtimestamp(1648230000).isoformat())
+        self.assertEqual(event2["chan_id_in"], "789012")
+        self.assertEqual(event2["chan_id_out"], "345678")
+        self.assertEqual(event2["amt_in"], 2000)
+        self.assertEqual(event2["amt_out"], 1980)
+        self.assertEqual(event2["fee"], 20)
+        self.assertEqual(event2["fee_msat"], 20000)
+        self.assertEqual(event2["amt_in_msat"], 2000000)
+        self.assertEqual(event2["amt_out_msat"], 1980000)
 
 if __name__ == "__main__":
     unittest.main() 

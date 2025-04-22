@@ -113,34 +113,34 @@ class DataSourceFactory:
                         if asyncio.iscoroutinefunction(mcp_service.get_network_stats):
                             try:
                                 asyncio.get_event_loop().run_until_complete(mcp_service.get_network_stats())
-                                source_type = "mcp"
+                                return cls.get_data_source("mcp")
                             except Exception as e:
                                 logger.warning(f"MCP indisponible: {e}, utilisation de la source locale")
-                                source_type = "local"
+                                return cls.get_data_source("local")
                         else:
                             try:
                                 mcp_service.get_network_stats()
-                                source_type = "mcp"
+                                return cls.get_data_source("mcp")
                             except Exception as e:
                                 logger.warning(f"MCP indisponible: {e}, utilisation de la source locale")
-                                source_type = "local"
+                                return cls.get_data_source("local")
                     except Exception as e:
                         logger.warning(f"MCP indisponible: {e}, utilisation de la source locale")
-                        source_type = "local"
+                        return cls.get_data_source("local")
                 else:
-                    source_type = "local"
+                    return cls.get_data_source("local")
             else:
                 # Utiliser le health manager pour choisir la meilleure source
                 if (settings.MCP_API_KEY and settings.MCP_API_URL and 
                     cls._health_manager.is_source_available("mcp")):
-                    source_type = "mcp"
+                    return cls.get_data_source("mcp")
                 elif cls._health_manager.is_source_available("local"):
-                    source_type = "local"
+                    return cls.get_data_source("local")
                 else:
                     # Fallback sur la source locale même si elle n'est pas disponible
                     # (elle utilisera son cache si disponible)
-                    source_type = "local"
                     logger.warning("Aucune source en ligne, utilisation du cache local")
+                    return cls.get_data_source("local")
         
         # Vérifier si l'instance existe déjà
         if source_type in cls._sources:
