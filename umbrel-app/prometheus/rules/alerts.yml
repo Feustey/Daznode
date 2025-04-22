@@ -1,0 +1,29 @@
+groups:
+- name: daznode_alerts
+  rules:
+  - alert: HighChannelFeeRate
+    expr: channel_fee_rate > 0.0001
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Taux de frais élevé sur le canal {{ $labels.channel_id }}"
+      description: "Le canal {{ $labels.channel_id }} a un taux de frais de {{ $value }}"
+
+  - alert: LowChannelBalance
+    expr: channel_local_balance / channel_capacity < 0.1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Solde faible sur le canal {{ $labels.channel_id }}"
+      description: "Le canal {{ $labels.channel_id }} a un solde local de {{ $value }}%"
+
+  - alert: HighChannelUsage
+    expr: channel_forwarded_amount / channel_capacity > 0.9
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Utilisation élevée du canal {{ $labels.channel_id }}"
+      description: "Le canal {{ $labels.channel_id }} est utilisé à {{ $value }}%" 
