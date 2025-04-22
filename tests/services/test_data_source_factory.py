@@ -8,6 +8,7 @@ from services.local_data_source import LocalDataSource
 from services.mcp_data_source import MCPDataSource
 from services.health_check_manager import HealthCheckManager
 
+
 class TestDataSourceFactory:
     
     @pytest.fixture
@@ -66,10 +67,19 @@ class TestDataSourceFactory:
     @pytest.mark.asyncio
     async def test_initialize(self, mock_clients, setup_factory):
         """Test de l'initialisation de la factory"""
-        with patch('services.data_source_factory.LNDClient', return_value=mock_clients["lnd_client"]), \
-             patch('services.data_source_factory.MCPService', return_value=mock_clients["mcp_service"]), \
-             patch('services.data_source_factory.LNRouterClient', return_value=mock_clients["lnrouter_client"]), \
-             patch('services.data_source_factory.HealthCheckManager', return_value=mock_clients["health_manager"]):
+        with patch(
+            'services.data_source_factory.LNDClient', 
+            return_value=mock_clients["lnd_client"]
+        ), patch(
+            'services.data_source_factory.MCPService', 
+            return_value=mock_clients["mcp_service"]
+        ), patch(
+            'services.data_source_factory.LNRouterClient', 
+            return_value=mock_clients["lnrouter_client"]
+        ), patch(
+            'services.data_source_factory.HealthCheckManager', 
+            return_value=mock_clients["health_manager"]
+        ):
             
             await DataSourceFactory.initialize()
             
@@ -87,10 +97,19 @@ class TestDataSourceFactory:
     @pytest.mark.asyncio
     async def test_initialize_idempotent(self, mock_clients, setup_factory):
         """Test que l'initialisation est idempotente"""
-        with patch('services.data_source_factory.LNDClient', return_value=mock_clients["lnd_client"]), \
-             patch('services.data_source_factory.MCPService', return_value=mock_clients["mcp_service"]), \
-             patch('services.data_source_factory.LNRouterClient', return_value=mock_clients["lnrouter_client"]), \
-             patch('services.data_source_factory.HealthCheckManager', return_value=mock_clients["health_manager"]):
+        with patch(
+            'services.data_source_factory.LNDClient', 
+            return_value=mock_clients["lnd_client"]
+        ), patch(
+            'services.data_source_factory.MCPService', 
+            return_value=mock_clients["mcp_service"]
+        ), patch(
+            'services.data_source_factory.LNRouterClient', 
+            return_value=mock_clients["lnrouter_client"]
+        ), patch(
+            'services.data_source_factory.HealthCheckManager', 
+            return_value=mock_clients["health_manager"]
+        ):
             
             await DataSourceFactory.initialize()
             initial_health_manager = DataSourceFactory._health_manager
@@ -106,10 +125,19 @@ class TestDataSourceFactory:
     @pytest.mark.asyncio
     async def test_shutdown(self, mock_clients, setup_factory):
         """Test de l'arrêt propre de la factory"""
-        with patch('services.data_source_factory.LNDClient', return_value=mock_clients["lnd_client"]), \
-             patch('services.data_source_factory.MCPService', return_value=mock_clients["mcp_service"]), \
-             patch('services.data_source_factory.LNRouterClient', return_value=mock_clients["lnrouter_client"]), \
-             patch('services.data_source_factory.HealthCheckManager', return_value=mock_clients["health_manager"]):
+        with patch(
+            'services.data_source_factory.LNDClient', 
+            return_value=mock_clients["lnd_client"]
+        ), patch(
+            'services.data_source_factory.MCPService', 
+            return_value=mock_clients["mcp_service"]
+        ), patch(
+            'services.data_source_factory.LNRouterClient', 
+            return_value=mock_clients["lnrouter_client"]
+        ), patch(
+            'services.data_source_factory.HealthCheckManager', 
+            return_value=mock_clients["health_manager"]
+        ):
             
             await DataSourceFactory.initialize()
             await DataSourceFactory.shutdown()
@@ -118,14 +146,31 @@ class TestDataSourceFactory:
             mock_clients["health_manager"].stop_background_checks.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_get_data_source_auto_with_health_manager(self, mock_clients, setup_factory):
+    async def test_get_data_source_auto_with_health_manager(
+        self, 
+        mock_clients, 
+        setup_factory
+    ):
         """Test de la sélection automatique avec le health manager"""
-        with patch('services.data_source_factory.LNDClient', return_value=mock_clients["lnd_client"]), \
-             patch('services.data_source_factory.MCPService', return_value=mock_clients["mcp_service"]), \
-             patch('services.data_source_factory.LNRouterClient', return_value=mock_clients["lnrouter_client"]), \
-             patch('services.data_source_factory.HealthCheckManager', return_value=mock_clients["health_manager"]), \
-             patch('core.config.settings.MCP_API_KEY', 'test_key'), \
-             patch('core.config.settings.MCP_API_URL', 'https://api.test'):
+        with patch(
+            'services.data_source_factory.LNDClient', 
+            return_value=mock_clients["lnd_client"]
+        ), patch(
+            'services.data_source_factory.MCPService', 
+            return_value=mock_clients["mcp_service"]
+        ), patch(
+            'services.data_source_factory.LNRouterClient', 
+            return_value=mock_clients["lnrouter_client"]
+        ), patch(
+            'services.data_source_factory.HealthCheckManager', 
+            return_value=mock_clients["health_manager"]
+        ), patch(
+            'core.config.settings.MCP_API_KEY', 
+            'test_key'
+        ), patch(
+            'core.config.settings.MCP_API_URL', 
+            'https://api.test'
+        ):
             
             await DataSourceFactory.initialize()
             
@@ -137,14 +182,31 @@ class TestDataSourceFactory:
             mock_clients["health_manager"].is_source_available.assert_called_with("mcp")
     
     @pytest.mark.asyncio
-    async def test_get_data_source_auto_fallback_with_health_manager(self, mock_clients, setup_factory):
+    async def test_get_data_source_auto_fallback_with_health_manager(
+        self, 
+        mock_clients, 
+        setup_factory
+    ):
         """Test du fallback quand MCP n'est pas disponible selon le health manager"""
-        with patch('services.data_source_factory.LNDClient', return_value=mock_clients["lnd_client"]), \
-             patch('services.data_source_factory.MCPService', return_value=mock_clients["mcp_service"]), \
-             patch('services.data_source_factory.LNRouterClient', return_value=mock_clients["lnrouter_client"]), \
-             patch('services.data_source_factory.HealthCheckManager', return_value=mock_clients["health_manager"]), \
-             patch('core.config.settings.MCP_API_KEY', 'test_key'), \
-             patch('core.config.settings.MCP_API_URL', 'https://api.test'):
+        with patch(
+            'services.data_source_factory.LNDClient', 
+            return_value=mock_clients["lnd_client"]
+        ), patch(
+            'services.data_source_factory.MCPService', 
+            return_value=mock_clients["mcp_service"]
+        ), patch(
+            'services.data_source_factory.LNRouterClient', 
+            return_value=mock_clients["lnrouter_client"]
+        ), patch(
+            'services.data_source_factory.HealthCheckManager', 
+            return_value=mock_clients["health_manager"]
+        ), patch(
+            'core.config.settings.MCP_API_KEY', 
+            'test_key'
+        ), patch(
+            'core.config.settings.MCP_API_URL', 
+            'https://api.test'
+        ):
             
             await DataSourceFactory.initialize()
             
@@ -163,10 +225,19 @@ class TestDataSourceFactory:
     @pytest.mark.asyncio
     async def test_get_data_source_caching(self, setup_factory, mock_clients):
         """Vérifie que les sources de données sont correctement mises en cache"""
-        with patch('services.data_source_factory.LNDClient', return_value=mock_clients["lnd_client"]), \
-             patch('services.data_source_factory.MCPService', return_value=mock_clients["mcp_service"]), \
-             patch('services.data_source_factory.LNRouterClient', return_value=mock_clients["lnrouter_client"]), \
-             patch('services.data_source_factory.HealthCheckManager', return_value=mock_clients["health_manager"]):
+        with patch(
+            'services.data_source_factory.LNDClient', 
+            return_value=mock_clients["lnd_client"]
+        ), patch(
+            'services.data_source_factory.MCPService', 
+            return_value=mock_clients["mcp_service"]
+        ), patch(
+            'services.data_source_factory.LNRouterClient', 
+            return_value=mock_clients["lnrouter_client"]
+        ), patch(
+            'services.data_source_factory.HealthCheckManager', 
+            return_value=mock_clients["health_manager"]
+        ):
             
             # Initialiser la factory
             await DataSourceFactory.initialize()
@@ -188,16 +259,33 @@ class TestDataSourceFactory:
             ])
     
     @pytest.mark.asyncio
-    async def test_get_data_source_auto_without_health_manager(self, mock_clients, setup_factory):
+    async def test_get_data_source_auto_without_health_manager(
+        self, 
+        mock_clients, 
+        setup_factory
+    ):
         """Test de la sélection automatique sans health manager initialisé"""
-        with patch('services.data_source_factory.LNDClient', return_value=mock_clients["lnd_client"]), \
-             patch('services.data_source_factory.MCPService', return_value=mock_clients["mcp_service"]), \
-             patch('services.data_source_factory.LNRouterClient', return_value=mock_clients["lnrouter_client"]), \
-             patch('core.config.settings.MCP_API_KEY', 'test_key'), \
-             patch('core.config.settings.MCP_API_URL', 'https://api.test'):
+        with patch(
+            'services.data_source_factory.LNDClient', 
+            return_value=mock_clients["lnd_client"]
+        ), patch(
+            'services.data_source_factory.MCPService', 
+            return_value=mock_clients["mcp_service"]
+        ), patch(
+            'services.data_source_factory.LNRouterClient', 
+            return_value=mock_clients["lnrouter_client"]
+        ), patch(
+            'core.config.settings.MCP_API_KEY', 
+            'test_key'
+        ), patch(
+            'core.config.settings.MCP_API_URL', 
+            'https://api.test'
+        ):
             
             # Configurer le mock MCP pour simuler une réponse réussie
-            mock_clients["mcp_service"].get_network_stats = MagicMock(return_value={"success": True})
+            mock_clients["mcp_service"].get_network_stats = MagicMock(
+                return_value={"success": True}
+            )
             
             # Réinitialiser l'état de la factory
             DataSourceFactory._health_manager = None
@@ -208,16 +296,33 @@ class TestDataSourceFactory:
             mock_clients["mcp_service"].get_network_stats.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_get_data_source_auto_without_health_manager_mcp_fails(self, mock_clients, setup_factory):
+    async def test_get_data_source_auto_without_health_manager_mcp_fails(
+        self, 
+        mock_clients, 
+        setup_factory
+    ):
         """Test du fallback quand MCP échoue sans health manager"""
-        with patch('services.data_source_factory.LNDClient', return_value=mock_clients["lnd_client"]), \
-             patch('services.data_source_factory.MCPService', return_value=mock_clients["mcp_service"]), \
-             patch('services.data_source_factory.LNRouterClient', return_value=mock_clients["lnrouter_client"]), \
-             patch('core.config.settings.MCP_API_KEY', 'test_key'), \
-             patch('core.config.settings.MCP_API_URL', 'https://api.test'):
+        with patch(
+            'services.data_source_factory.LNDClient', 
+            return_value=mock_clients["lnd_client"]
+        ), patch(
+            'services.data_source_factory.MCPService', 
+            return_value=mock_clients["mcp_service"]
+        ), patch(
+            'services.data_source_factory.LNRouterClient', 
+            return_value=mock_clients["lnrouter_client"]
+        ), patch(
+            'core.config.settings.MCP_API_KEY', 
+            'test_key'
+        ), patch(
+            'core.config.settings.MCP_API_URL', 
+            'https://api.test'
+        ):
             
             # Configurer le mock MCP pour simuler une erreur
-            mock_clients["mcp_service"].get_network_stats = AsyncMock(side_effect=Exception("MCP error"))
+            mock_clients["mcp_service"].get_network_stats = AsyncMock(
+                side_effect=Exception("MCP error")
+            )
             
             source = DataSourceFactory.get_data_source("auto")
             assert isinstance(source, LocalDataSource)

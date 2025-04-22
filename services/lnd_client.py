@@ -15,14 +15,23 @@ try:
     from proto import router_pb2 as router
     from proto import router_pb2_grpc as routerrpc
 except ImportError:
-    logging.error("Protobuf LND non trouvés. Générez-les avec la commande : python -m grpc_tools.protoc...")
+    logging.error(
+        "Protobuf LND non trouvés. Générez-les avec la commande : "
+        "python -m grpc_tools.protoc..."
+    )
 
 logger = logging.getLogger(__name__)
+
 
 class LNDClient:
     """Client pour interagir avec un nœud LND via gRPC"""
     
-    def __init__(self, cert_path: str = None, macaroon_path: str = None, grpc_host: str = None):
+    def __init__(
+        self, 
+        cert_path: str = None, 
+        macaroon_path: str = None, 
+        grpc_host: str = None
+    ):
         """Initialise le client LND
         
         Args:
@@ -35,7 +44,10 @@ class LNDClient:
         self.grpc_host = grpc_host or settings.LND_GRPC_HOST
         
         if not self.cert_path or not self.macaroon_path:
-            logger.warning("Certificat TLS ou macaroon non configurés. Certaines fonctionnalités seront désactivées.")
+            logger.warning(
+                "Certificat TLS ou macaroon non configurés. "
+                "Certaines fonctionnalités seront désactivées."
+            )
         
         self._stub = None
         self._router_stub = None
@@ -102,7 +114,9 @@ class LNDClient:
             best_header_timestamp = None
             if hasattr(response, 'best_header_timestamp'):
                 try:
-                    best_header_timestamp = datetime.fromtimestamp(int(response.best_header_timestamp)).isoformat()
+                    best_header_timestamp = datetime.fromtimestamp(
+                        int(response.best_header_timestamp)
+                    ).isoformat()
                 except (TypeError, ValueError):
                     pass
 
@@ -126,8 +140,10 @@ class LNDClient:
                         try:
                             features[k] = {
                                 "name": str(v.name) if hasattr(v, 'name') else '',
-                                "is_required": bool(v.is_required) if hasattr(v, 'is_required') else False,
-                                "is_known": bool(v.is_known) if hasattr(v, 'is_known') else False
+                                "is_required": bool(v.is_required) 
+                                if hasattr(v, 'is_required') else False,
+                                "is_known": bool(v.is_known) 
+                                if hasattr(v, 'is_known') else False
                             }
                         except AttributeError:
                             pass
@@ -151,10 +167,16 @@ class LNDClient:
                 "features": features
             }
         except grpc.RpcError as e:
-            logger.error(f"Erreur gRPC lors de la récupération des informations du nœud: {e}")
+            logger.error(
+                f"Erreur gRPC lors de la récupération des informations du nœud: {e}"
+            )
             raise
     
-    def list_channels(self, active_only: bool = False, inactive_only: bool = False) -> List[Dict]:
+    def list_channels(
+        self, 
+        active_only: bool = False, 
+        inactive_only: bool = False
+    ) -> List[Dict]:
         """Liste tous les canaux du nœud
         
         Args:
@@ -197,7 +219,11 @@ class LNDClient:
 
                 # Convertir les IDs en chaînes
                 try:
-                    channel_id = str(channel.channel_id if hasattr(channel, 'channel_id') else channel.chan_id)
+                    channel_id = str(
+                        channel.channel_id 
+                        if hasattr(channel, 'channel_id') 
+                        else channel.chan_id
+                    )
                 except (TypeError, AttributeError):
                     channel_id = ''
 
@@ -230,9 +256,16 @@ class LNDClient:
             logger.error(f"Erreur gRPC lors de la récupération des canaux: {e}")
             raise
     
-    def open_channel(self, node_pubkey: str, local_amount: int, push_amount: int = 0, 
-                     private: bool = False, min_htlc_msat: int = 1000, 
-                     remote_csv_delay: int = 144, spend_unconfirmed: bool = False) -> str:
+    def open_channel(
+        self, 
+        node_pubkey: str, 
+        local_amount: int, 
+        push_amount: int = 0, 
+        private: bool = False, 
+        min_htlc_msat: int = 1000, 
+        remote_csv_delay: int = 144, 
+        spend_unconfirmed: bool = False
+    ) -> str:
         """Ouvre un nouveau canal avec un nœud distant
         
         Args:
@@ -272,7 +305,12 @@ class LNDClient:
             logger.error(f"Erreur gRPC lors de l'ouverture du canal: {e}")
             raise
     
-    def close_channel(self, channel_point: str, force: bool = False, target_conf: int = 6) -> str:
+    def close_channel(
+        self, 
+        channel_point: str, 
+        force: bool = False, 
+        target_conf: int = 6
+    ) -> str:
         """Ferme un canal existant
         
         Args:
@@ -302,10 +340,18 @@ class LNDClient:
             # CloseChannel est un stream RPC
             for update in self.stub.CloseChannel(request):
                 if update.HasField('close_pending'):
-                    logger.info(f"Fermeture du canal en attente. Txid: {update.close_pending.txid.hex()}")
+                    logger.info(
+                        f"Fermeture du canal en attente. Txid: {update.close_pending.txid.hex()}"
+                    )
                 elif update.HasField('chan_close'):
-                    close_type = ["COOPERATIVE", "LOCAL_FORCE", "REMOTE_FORCE", "BREACH", "FUNDING_CANCELED", "ABANDONED"][update.chan_close.close_type]
-                    logger.info(f"Canal fermé. Type: {close_type}. Txid: {update.chan_close.closing_txid.hex()}")
+                    close_type = [
+                        "COOPERATIVE", "LOCAL_FORCE", "REMOTE_FORCE", 
+                        "BREACH", "FUNDING_CANCELED", "ABANDONED"
+                    ][update.chan_close.close_type]
+                    logger.info(
+                        f"Canal fermé. Type: {close_type}. "
+                        f"Txid: {update.chan_close.closing_txid.hex()}"
+                    )
                     return update.chan_close.closing_txid.hex()
             
             return None
@@ -313,8 +359,13 @@ class LNDClient:
             logger.error(f"Erreur gRPC lors de la fermeture du canal: {e}")
             raise
     
-    def update_channel_policy(self, channel_point: str, base_fee_msat: int = None, 
-                              fee_rate: int = None, time_lock_delta: int = None) -> bool:
+    def update_channel_policy(
+        self, 
+        channel_point: str, 
+        base_fee_msat: int = None, 
+        fee_rate: int = None, 
+        time_lock_delta: int = None
+    ) -> bool:
         """Met à jour la politique de frais d'un canal
         
         Args:
@@ -360,11 +411,18 @@ class LNDClient:
             self.stub.UpdateChannelPolicy(request)
             return True
         except grpc.RpcError as e:
-            logger.error(f"Erreur gRPC lors de la mise à jour de la politique du canal: {e}")
+            logger.error(
+                f"Erreur gRPC lors de la mise à jour de la politique du canal: {e}"
+            )
             raise
     
-    def get_forwarding_history(self, start_time: int = None, end_time: int = None, 
-                               offset: int = 0, limit: int = 100) -> Dict:
+    def get_forwarding_history(
+        self, 
+        start_time: int = None, 
+        end_time: int = None, 
+        offset: int = 0, 
+        limit: int = 100
+    ) -> Dict:
         """Récupère l'historique de routage pour une période donnée
         
         Args:
@@ -412,7 +470,9 @@ class LNDClient:
                 "total_count": len(forwarding_events)
             }
         except grpc.RpcError as e:
-            logger.error(f"Erreur gRPC lors de la récupération de l'historique de transfert: {e}")
+            logger.error(
+                f"Erreur gRPC lors de la récupération de l'historique de transfert: {e}"
+            )
             raise
     
     async def subscribe_channel_events(self, callback: Callable) -> None:
@@ -470,7 +530,9 @@ class LNDClient:
                 if event_type:
                     await callback(event_type, data)
         except grpc.RpcError as e:
-            logger.error(f"Erreur gRPC lors de l'abonnement aux événements de canal: {e}")
+            logger.error(
+                f"Erreur gRPC lors de l'abonnement aux événements de canal: {e}"
+            )
             raise
     
     async def subscribe_invoice_events(self, callback: Callable) -> None:
@@ -485,7 +547,9 @@ class LNDClient:
             for invoice in self.stub.SubscribeInvoices(request):
                 await callback(self._format_invoice(invoice))
         except grpc.RpcError as e:
-            logger.error(f"Erreur gRPC lors de l'abonnement aux événements d'invoice: {e}")
+            logger.error(
+                f"Erreur gRPC lors de l'abonnement aux événements d'invoice: {e}"
+            )
             raise
     
     def _format_invoice(self, invoice) -> Dict:
@@ -498,7 +562,8 @@ class LNDClient:
             "value_msat": invoice.value_msat,
             "settled": invoice.settled,
             "creation_date": datetime.fromtimestamp(invoice.creation_date).isoformat(),
-            "settle_date": datetime.fromtimestamp(invoice.settle_date).isoformat() if invoice.settle_date > 0 else None,
+            "settle_date": datetime.fromtimestamp(invoice.settle_date).isoformat() 
+                if invoice.settle_date > 0 else None,
             "payment_request": invoice.payment_request,
             "description_hash": invoice.description_hash.hex(),
             "expiry": invoice.expiry,
@@ -538,8 +603,13 @@ class LNDClient:
                     "mpp_total_amt_msat": htlc.mpp_total_amt_msat
                 } for htlc in invoice.htlcs
             ],
-            "features": {k: {"name": v.name, "is_required": v.is_required, "is_known": v.is_known} 
-                        for k, v in invoice.features.items()},
+            "features": {
+                k: {
+                    "name": v.name, 
+                    "is_required": v.is_required, 
+                    "is_known": v.is_known
+                } for k, v in invoice.features.items()
+            },
             "is_keysend": invoice.is_keysend,
             "payment_addr": invoice.payment_addr.hex(),
             "is_amp": invoice.is_amp,
@@ -553,8 +623,13 @@ class LNDClient:
             }
         }
     
-    async def rebalance_channels(self, source_channels: List[str], target_channels: List[str], 
-                                amount_sat: int, fee_limit_sat: int = 100) -> Dict:
+    async def rebalance_channels(
+        self, 
+        source_channels: List[str], 
+        target_channels: List[str], 
+        amount_sat: int, 
+        fee_limit_sat: int = 100
+    ) -> Dict:
         """Rééquilibre les fonds entre les canaux spécifiés
         
         Args:
@@ -635,15 +710,22 @@ class LNDClient:
                                 "pub_key": hop.pub_key,
                                 "tlv_payload": hop.tlv_payload,
                                 "mpp_record": {
-                                    "payment_addr": hop.mpp_record.payment_addr.hex() if hop.mpp_record else None,
-                                    "total_amt_msat": hop.mpp_record.total_amt_msat if hop.mpp_record else None
+                                    "payment_addr": hop.mpp_record.payment_addr.hex() 
+                                        if hop.mpp_record else None,
+                                    "total_amt_msat": hop.mpp_record.total_amt_msat 
+                                        if hop.mpp_record else None
                                 } if hop.HasField('mpp_record') else None,
                                 "amp_record": {
-                                    "root_share": hop.amp_record.root_share.hex() if hop.amp_record else None,
-                                    "set_id": hop.amp_record.set_id.hex() if hop.amp_record else None,
-                                    "child_index": hop.amp_record.child_index if hop.amp_record else None
+                                    "root_share": hop.amp_record.root_share.hex() 
+                                        if hop.amp_record else None,
+                                    "set_id": hop.amp_record.set_id.hex() 
+                                        if hop.amp_record else None,
+                                    "child_index": hop.amp_record.child_index 
+                                        if hop.amp_record else None
                                 } if hop.HasField('amp_record') else None,
-                                "custom_records": {k: v.hex() for k, v in hop.custom_records.items()}
+                                "custom_records": {
+                                    k: v.hex() for k, v in hop.custom_records.items()
+                                }
                             } for hop in response.route.hops
                         ],
                         "total_fees_msat": response.route.total_fees_msat,

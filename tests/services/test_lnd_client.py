@@ -60,13 +60,18 @@ class TestLNDClient(unittest.TestCase):
         mock_info.num_pending_channels = 0
         mock_info.version = "0.16.1"
         mock_info.chains = ["bitcoin"]
-        mock_info.uris = ["02778f4a4eb3a2344b9fd8ee72e7ec5f03f803e5f5273e2e1a2af508@127.0.0.1:9735"]
+        mock_info.uris = [
+            "02778f4a4eb3a2344b9fd8ee72e7ec5f03f803e5f5273e2e1a2af508@127.0.0.1:9735"
+        ]
         
         # Appeler la méthode à tester
         result = self.lnd_client.get_node_info()
         
         # Vérifier que les données ont été correctement récupérées
-        self.assertEqual(result["pubkey"], "02778f4a4eb3a2344b9fd8ee72e7ec5f03f803e5f5273e2e1a2af508")
+        self.assertEqual(
+            result["pubkey"], 
+            "02778f4a4eb3a2344b9fd8ee72e7ec5f03f803e5f5273e2e1a2af508"
+        )
         self.assertEqual(result["alias"], "Feustey")
         self.assertEqual(result["block_height"], 820305)
         self.assertEqual(result["synced_to_chain"], True)
@@ -76,7 +81,10 @@ class TestLNDClient(unittest.TestCase):
         self.assertEqual(result["num_pending_channels"], 0)
         self.assertEqual(result["version"], "0.16.1")
         self.assertEqual(result["chains"], ["bitcoin"])
-        self.assertEqual(result["uris"], ["02778f4a4eb3a2344b9fd8ee72e7ec5f03f803e5f5273e2e1a2af508@127.0.0.1:9735"])
+        self.assertEqual(
+            result["uris"], 
+            ["02778f4a4eb3a2344b9fd8ee72e7ec5f03f803e5f5273e2e1a2af508@127.0.0.1:9735"]
+        )
     
     def test_list_channels(self):
         """Test de liste des canaux"""
@@ -216,7 +224,11 @@ class TestLNDClient(unittest.TestCase):
         # Appeler la méthode à tester
         start_time = int(datetime(2022, 3, 1).timestamp())
         end_time = int(datetime(2022, 3, 31).timestamp())
-        result = self.lnd_client.get_forwarding_history(start_time=start_time, end_time=end_time, limit=100)
+        result = self.lnd_client.get_forwarding_history(
+            start_time=start_time, 
+            end_time=end_time, 
+            limit=100
+        )
         
         # Vérifier que le résultat est correct
         self.assertIn("forwarding_events", result)
@@ -224,7 +236,10 @@ class TestLNDClient(unittest.TestCase):
         
         # Vérifier le premier événement
         event1 = result["forwarding_events"][0]
-        self.assertEqual(event1["timestamp"], datetime.fromtimestamp(1648220000).isoformat())
+        self.assertEqual(
+            event1["timestamp"], 
+            datetime.fromtimestamp(1648220000).isoformat()
+        )
         self.assertEqual(event1["chan_id_in"], "123456")
         self.assertEqual(event1["chan_id_out"], "789012")
         self.assertEqual(event1["amt_in"], 1000)
@@ -236,7 +251,10 @@ class TestLNDClient(unittest.TestCase):
         
         # Vérifier le second événement
         event2 = result["forwarding_events"][1]
-        self.assertEqual(event2["timestamp"], datetime.fromtimestamp(1648230000).isoformat())
+        self.assertEqual(
+            event2["timestamp"], 
+            datetime.fromtimestamp(1648230000).isoformat()
+        )
         self.assertEqual(event2["chan_id_in"], "789012")
         self.assertEqual(event2["chan_id_out"], "345678")
         self.assertEqual(event2["amt_in"], 2000)

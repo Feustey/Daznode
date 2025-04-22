@@ -13,6 +13,7 @@ from services.health_check_manager import HealthCheckManager
 
 logger = logging.getLogger(__name__)
 
+
 class DataSourceFactory:
     """Factory pour créer des sources de données"""
     
@@ -112,20 +113,28 @@ class DataSourceFactory:
                         mcp_service = cls.get_mcp_service()
                         if asyncio.iscoroutinefunction(mcp_service.get_network_stats):
                             try:
-                                asyncio.get_event_loop().run_until_complete(mcp_service.get_network_stats())
+                                asyncio.get_event_loop().run_until_complete(
+                                    mcp_service.get_network_stats()
+                                )
                                 return cls.get_data_source("mcp")
                             except Exception as e:
-                                logger.warning(f"MCP indisponible: {e}, utilisation de la source locale")
+                                logger.warning(
+                                    f"MCP indisponible: {e}, utilisation de la source locale"
+                                )
                                 return cls.get_data_source("local")
                         else:
                             try:
                                 mcp_service.get_network_stats()
                                 return cls.get_data_source("mcp")
                             except Exception as e:
-                                logger.warning(f"MCP indisponible: {e}, utilisation de la source locale")
+                                logger.warning(
+                                    f"MCP indisponible: {e}, utilisation de la source locale"
+                                )
                                 return cls.get_data_source("local")
                     except Exception as e:
-                        logger.warning(f"MCP indisponible: {e}, utilisation de la source locale")
+                        logger.warning(
+                            f"MCP indisponible: {e}, utilisation de la source locale"
+                        )
                         return cls.get_data_source("local")
                 else:
                     return cls.get_data_source("local")
@@ -139,7 +148,9 @@ class DataSourceFactory:
                 else:
                     # Fallback sur la source locale même si elle n'est pas disponible
                     # (elle utilisera son cache si disponible)
-                    logger.warning("Aucune source en ligne, utilisation du cache local")
+                    logger.warning(
+                        "Aucune source en ligne, utilisation du cache local"
+                    )
                     return cls.get_data_source("local")
         
         # Vérifier si l'instance existe déjà
@@ -157,7 +168,10 @@ class DataSourceFactory:
                 mcp_service=cls._mcp_service or cls.get_mcp_service()
             )
         else:
-            logger.warning(f"Type de source de données inconnu: {source_type}, utilisation de 'local'")
+            logger.warning(
+                f"Type de source de données inconnu: {source_type}, "
+                "utilisation de 'local'"
+            )
             source = LocalDataSource(
                 lnd_client=cls._lnd_client or cls.get_lnd_client(),
                 lnrouter_client=cls._lnrouter_client or cls.get_lnrouter_client()
