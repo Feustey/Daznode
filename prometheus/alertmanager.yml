@@ -1,0 +1,36 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'telegram'
+
+receivers:
+- name: 'telegram'
+  webhook_configs:
+  - url: 'https://api.telegram.org/bot7676575630:AAEE4ds5F9XAvqU1JtAGY-_BFN0KDSAkvDQ/sendMessage?chat_id=REMPLACER_PAR_VOTRE_CHAT_ID&parse_mode=Markdown'
+    send_resolved: true
+    http_config:
+      basic_auth:
+        username: 'daznode_bot'
+    message: |
+      {{ if eq .Status "firing" }}
+      🔴 *ALERTE*: {{ .CommonLabels.alertname }}
+      {{ else }}
+      ✅ *RÉSOLU*: {{ .CommonLabels.alertname }}
+      {{ end }}
+      
+      *Description*: {{ .CommonAnnotations.description }}
+      *Sévérité*: {{ .CommonLabels.severity }}
+      *Date*: {{ .StartsAt }}
+      
+      {{ if .CommonLabels.instance }}
+      *Instance*: {{ .CommonLabels.instance }}
+      {{ end }}
+      
+      {{ if .CommonLabels.job }}
+      *Service*: {{ .CommonLabels.job }}
+      {{ end }} 

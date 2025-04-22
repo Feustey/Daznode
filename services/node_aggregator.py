@@ -9,6 +9,7 @@ from services.lnd_client import LNDClient
 from services.lnrouter_client import LNRouterClient
 from services.mcp import MCPService
 from services.feustey import FeusteyService
+from services.data_source_factory import DataSourceFactory
 
 logger = logging.getLogger(__name__)
 
@@ -211,308 +212,137 @@ class EnrichedNode:
 
 
 class NodeAggregator:
-    """Agrégateur de données pour les nœuds LN depuis différentes sources"""
+    """Agrégateur de données de nœuds et canaux"""
     
-    def __init__(self, lnd_client: LNDClient = None, lnrouter_client: LNRouterClient = None, 
-                 mcp_service: MCPService = None, feustey_service: FeusteyService = None):
-        """Initialise l'agrégateur de nœuds
+    def __init__(self, lnd_client: LNDClient = None, lnrouter_client: LNRouterClient = None):
+        """Initialise l'agrégateur de données
         
         Args:
             lnd_client: Client LND
             lnrouter_client: Client LNRouter
-            mcp_service: Service MCP
-            feustey_service: Service Feustey
         """
-        self.lnd_client = lnd_client or LNDClient() 
-        self.lnrouter_client = lnrouter_client or LNRouterClient()
-        self.mcp_service = mcp_service or MCPService()
-        self.feustey_service = feustey_service or FeusteyService()
-        self.cache = {}  # Cache des nœuds enrichis
-        self.cache_expiry = {}  # Expiration du cache par nœud
-        self.cache_duration = timedelta(hours=1)  # Durée de validité du cache
-        
-    async def get_enriched_node(self, pubkey: str, force_refresh: bool = False) -> EnrichedNode:
-        """Récupère un objet nœud enrichi avec toutes les sources de données
-        
-        Args:
-            pubkey: Clé publique du nœud
-            force_refresh: Si True, force la mise à jour du cache
-            
-        Returns:
-            Objet EnrichedNode avec les données enrichies
-        """
-        now = datetime.now()
-        
-        # Vérifier si nous avons un cache valide
-        if not force_refresh and pubkey in self.cache:
-            expiry = self.cache_expiry.get(pubkey)
-            if expiry and now < expiry:
-                logger.debug(f"Utilisation du cache pour le nœud {pubkey}")
-                return self.cache[pubkey]
-        
-        # Créer un nouvel objet EnrichedNode
-        node = EnrichedNode(pubkey)
-        
-        # Enrichir le nœud avec toutes les sources
-        await self.enrich_node(node)
-        
-        # Mettre en cache
-        self.cache[pubkey] = node
-        self.cache_expiry[pubkey] = now + self.cache_duration
-        
-        return node
+        self.lnd_client = lnd_client or DataSourceFactory.get_lnd_client()
+        self.lnrouter_client = lnrouter_client or DataSourceFactory.get_lnrouter_client()
+        self.data_source = DataSourceFactory.get_data_source()
     
-    async def enrich_node(self, node: EnrichedNode) -> None:
-        """Enrichit un nœud avec toutes les sources de données
-        
-        Args:
-            node: Objet EnrichedNode à enrichir
-        """
-        # Récupérer les données de chaque source en parallèle
-        tasks = [
-            self._enrich_with_lnd(node),
-            self._enrich_with_lnrouter(node),
-            self._enrich_with_mcp(node),
-            self._enrich_with_mempool(node)
-        ]
-        
-        # Exécuter toutes les tâches en parallèle
-        await asyncio.gather(*tasks)
-        
-        # Mettre à jour la date de dernière mise à jour
-        node.last_update = datetime.now().isoformat()
-    
-    async def _enrich_with_lnd(self, node: EnrichedNode) -> None:
-        """Enrichit un nœud avec les données LND
-        
-        Args:
-            node: Objet EnrichedNode à enrichir
-        """
+    async def get_enriched_node(self, pubkey: str) -> Optional[Dict[str, Any]]:
+        """Récupère les informations enrichies d'un nœud"""
         try:
-            # Si c'est notre nœud, récupérer les informations complètes
-            if node.pubkey == settings.NODE_PUBKEY:
-                node_info = self.lnd_client.get_node_info()
-                node.alias = node_info.get("alias")
-                node.color = node_info.get("color")
-                node.lnd_data = node_info
-                
-                # Récupérer les canaux
-                channels = self.lnd_client.list_channels()
-                
-                for lnd_channel in channels:
-                    channel = EnrichedChannel.from_lnd_channel(lnd_channel)
-                    node.add_channel(channel)
-                    
-                # Récupérer l'historique des forwards pour enrichir les canaux
-                forwards = self.lnd_client.get_forwarding_history(limit=1000)
-                
-                # Tracker des canaux vus dans les forwards
-                forwarding_channels = set()
-                
-                # Agréger les données de forwarding par canal
-                for event in forwards.get("forwarding_events", []):
-                    chan_id_in = str(event.get("chan_id_in"))
-                    chan_id_out = str(event.get("chan_id_out"))
-                    amt_in = event.get("amt_in", 0)
-                    amt_out = event.get("amt_out", 0)
-                    fee = event.get("fee", 0)
-                    timestamp = event.get("timestamp")
-                    
-                    forwarding_channels.add(chan_id_in)
-                    forwarding_channels.add(chan_id_out)
-                    
-                    # Mettre à jour les statistiques du canal entrant
-                    if chan_id_in in node.channels:
-                        channel = node.channels[chan_id_in]
-                        channel.forwarding_stats["total_forwards"] += 1
-                        channel.forwarding_stats["total_amount_forwards"] += amt_in
-                        channel.forwarding_stats["total_fees"] += fee
-                        
-                        # Mettre à jour la dernière date si nécessaire
-                        current_last = channel.forwarding_stats.get("last_forward_time")
-                        if not current_last or timestamp > current_last:
-                            channel.forwarding_stats["last_forward_time"] = timestamp
-                            
-                        # Mettre à jour les statistiques de profitabilité
-                        channel.profitability["revenue"] += fee
-                    
-                    # Mettre à jour les statistiques du canal sortant
-                    if chan_id_out in node.channels:
-                        channel = node.channels[chan_id_out]
-                        channel.forwarding_stats["total_forwards"] += 1
-                        channel.forwarding_stats["total_amount_forwards"] += amt_out
-                        
-                        # Mettre à jour la dernière date si nécessaire
-                        current_last = channel.forwarding_stats.get("last_forward_time")
-                        if not current_last or timestamp > current_last:
-                            channel.forwarding_stats["last_forward_time"] = timestamp
-                
-                # Calculer la profitabilité pour tous les canaux
-                for channel_id, channel in node.channels.items():
-                    # Si le canal n'a jamais vu de forwarding, marquer comme potentiellement non rentable
-                    if channel_id not in forwarding_channels:
-                        channel.profitability["net_profit"] = -1  # Coût d'opportunité
-                    else:
-                        # Calculer le profit net
-                        revenue = channel.profitability.get("revenue", 0)
-                        costs = channel.profitability.get("costs", 0)
-                        channel.profitability["net_profit"] = revenue - costs
-                        
-                        # Calculer le ROI si nous avons une capacité
-                        if channel.capacity > 0:
-                            channel.profitability["roi"] = channel.profitability["net_profit"] / channel.capacity
-            else:
-                # Pour les nœuds distants, on n'a pas accès directement aux données LND
-                pass
-                
+            # Essayer d'abord la source de données par défaut
+            node = await self.data_source.get_node_details(pubkey)
+            
+            if node is None:
+                # Essayer la source locale si la première tentative échoue
+                local_source = DataSourceFactory.get_data_source("local")
+                if local_source != self.data_source:
+                    node = await local_source.get_node_details(pubkey)
+            
+            if node is None:
+                # Essayer MCP en dernier recours
+                mcp_source = DataSourceFactory.get_data_source("mcp")
+                if mcp_source != self.data_source and mcp_source != local_source:
+                    node = await mcp_source.get_node_details(pubkey)
+            
+            if node is None:
+                logger.warning(f"Nœud non trouvé pour pubkey {pubkey}")
+                return None
+            
+            # Récupérer les canaux liés au nœud
+            channels = await self.data_source.get_node_channels(pubkey)
+            
+            # Enrichir les données
+            node["channels"] = channels
+            node["num_channels"] = len(channels)
+            node["total_capacity"] = sum(c.get("capacity", 0) for c in channels)
+            node["last_updated"] = datetime.now().isoformat()
+            
+            return node
+        
         except Exception as e:
-            logger.error(f"Erreur lors de l'enrichissement avec LND: {e}")
+            logger.error(f"Erreur lors de la récupération des informations enrichies du nœud {pubkey}: {e}")
+            return None
     
-    async def _enrich_with_lnrouter(self, node: EnrichedNode) -> None:
-        """Enrichit un nœud avec les données LNRouter
-        
-        Args:
-            node: Objet EnrichedNode à enrichir
-        """
+    async def get_enriched_channel(self, channel_id: str) -> Optional[Dict[str, Any]]:
+        """Récupère les informations enrichies d'un canal"""
         try:
-            # Récupérer les informations du nœud depuis LNRouter
-            node_info = await self.lnrouter_client.get_node_info(node.pubkey)
+            # Essayer d'abord la source de données par défaut
+            channel = await self.data_source.get_channel_details(channel_id)
             
-            if not node.alias and "alias" in node_info:
-                node.alias = node_info.get("alias")
-                
-            if not node.color and "color" in node_info:
-                node.color = node_info.get("color")
-                
-            # Stocker les données complètes
-            node.lnrouter_data = node_info
+            if channel is None:
+                # Essayer la source locale si la première tentative échoue
+                local_source = DataSourceFactory.get_data_source("local")
+                if local_source != self.data_source:
+                    channel = await local_source.get_channel_details(channel_id)
             
-            # Si ce nœud a des canaux dans LNRouter, enrichir nos données de canaux
-            for channel_data in node_info.get("channels", []):
-                channel_id = str(channel_data.get("channel_id"))
-                
-                # Si nous connaissons déjà ce canal, enrichir ses données
-                if channel_id in node.channels:
-                    channel = node.channels[channel_id]
-                    channel.lnrouter_data = channel_data
-                    
-                    # Mettre à jour la capacité si elle n'est pas définie
-                    if not channel.capacity and "capacity" in channel_data:
-                        channel.capacity = channel_data.get("capacity")
-                    
-                # Sinon, créer un nouveau canal avec ces données
-                else:
-                    # Pour l'instant, ne pas créer de nouveaux canaux si on ne les connaît pas déjà
-                    pass
-                    
+            if channel is None:
+                # Essayer MCP en dernier recours
+                mcp_source = DataSourceFactory.get_data_source("mcp")
+                if mcp_source != self.data_source and mcp_source != local_source:
+                    channel = await mcp_source.get_channel_details(channel_id)
+            
+            if channel is None:
+                logger.warning(f"Canal non trouvé pour ID {channel_id}")
+                return None
+            
+            # Récupérer les informations des nœuds aux extrémités
+            node1_pub = channel.get("node1_pub")
+            node2_pub = channel.get("node2_pub")
+            
+            if node1_pub:
+                try:
+                    node1 = await self.data_source.get_node_details(node1_pub)
+                    if node1:
+                        channel["node1_alias"] = node1.get("alias", "")
+                except Exception as e:
+                    logger.error(f"Erreur lors de la récupération des informations du nœud {node1_pub}: {e}")
+            
+            if node2_pub:
+                try:
+                    node2 = await self.data_source.get_node_details(node2_pub)
+                    if node2:
+                        channel["node2_alias"] = node2.get("alias", "")
+                except Exception as e:
+                    logger.error(f"Erreur lors de la récupération des informations du nœud {node2_pub}: {e}")
+            
+            # Ajouter des informations supplémentaires
+            channel["last_updated"] = datetime.now().isoformat()
+            
+            return channel
+        
         except Exception as e:
-            logger.error(f"Erreur lors de l'enrichissement avec LNRouter: {e}")
+            logger.error(f"Erreur lors de la récupération des informations enrichies du canal {channel_id}: {e}")
+            return None
     
-    async def _enrich_with_mcp(self, node: EnrichedNode) -> None:
-        """Enrichit un nœud avec les données MCP
-        
-        Args:
-            node: Objet EnrichedNode à enrichir
-        """
+    async def get_network_context(self) -> Dict[str, Any]:
+        """Récupère le contexte réseau global"""
         try:
-            # Récupérer les informations du nœud depuis MCP
-            node_info = await self.mcp_service.get_node_details(node.pubkey)
+            # Récupérer les statistiques du réseau
+            network_stats = await self.data_source.get_network_stats()
             
-            if node_info:
-                if not node.alias and "alias" in node_info:
-                    node.alias = node_info.get("alias")
-                    
-                if not node.color and "color" in node_info:
-                    node.color = node_info.get("color")
-                    
-                # Stocker les données complètes
-                node.mcp_data = node_info
-                
-                # Si ce nœud a des canaux dans MCP, enrichir nos données de canaux
-                channels = await self.mcp_service.get_node_channels(node.pubkey)
-                
-                for channel_data in channels:
-                    channel_id = str(channel_data.get("channel_id"))
-                    
-                    # Si nous connaissons déjà ce canal, enrichir ses données
-                    if channel_id in node.channels:
-                        channel = node.channels[channel_id]
-                        channel.mcp_data = channel_data
-                        
-                        # Mettre à jour la capacité si elle n'est pas définie
-                        if not channel.capacity and "capacity" in channel_data:
-                            channel.capacity = channel_data.get("capacity")
-                    
-                    # Sinon, créer un nouveau canal avec ces données
-                    else:
-                        # Pour l'instant, ne pas créer de nouveaux canaux si on ne les connaît pas déjà
-                        pass
-                        
-        except Exception as e:
-            logger.error(f"Erreur lors de l'enrichissement avec MCP: {e}")
-    
-    async def _enrich_with_mempool(self, node: EnrichedNode) -> None:
-        """Enrichit un nœud avec les données Mempool
-        
-        Args:
-            node: Objet EnrichedNode à enrichir
-        """
-        # Pour l'instant, nous n'intégrons pas directement avec Mempool
-        # Mais nous pourrions à l'avenir récupérer des données sur les frais, la congestion, etc.
-        pass
-    
-    async def get_enriched_channels(self, pubkey: str = None) -> List[EnrichedChannel]:
-        """Récupère des informations enrichies sur les canaux
-        
-        Args:
-            pubkey: Clé publique du nœud (si None, utilise le nœud local)
+            # Récupérer les statistiques des canaux
+            channels_stats = await self.data_source.get_channels_stats()
             
-        Returns:
-            Liste des canaux enrichis
-        """
-        node_pubkey = pubkey or settings.NODE_PUBKEY
-        node = await self.get_enriched_node(node_pubkey)
-        return list(node.channels.values())
-    
-    async def get_network_context(self) -> Dict:
-        """Récupère le contexte global du réseau
-        
-        Returns:
-            Dictionnaire avec le contexte du réseau
-        """
-        try:
-            # Récupérer les statistiques du réseau depuis MCP
-            mcp_stats = await self.mcp_service.get_network_stats()
+            # Récupérer les informations du nœud local
+            node_info = self.lnd_client.get_node_info()
             
-            # Récupérer les statistiques du réseau depuis LNRouter
-            lnrouter_stats = await self.lnrouter_client.get_network_stats()
-            
-            # Récupérer l'analyse de topologie depuis LNRouter
-            topology = await self.lnrouter_client.analyze_network_topology()
-            
-            # Construire le contexte
+            # Agréger les informations
             context = {
                 "timestamp": datetime.now().isoformat(),
-                "mcp": {
-                    "num_nodes": mcp_stats.get("num_nodes", 0),
-                    "num_channels": mcp_stats.get("num_channels", 0),
-                    "total_capacity": mcp_stats.get("total_capacity", 0),
-                    "avg_capacity_per_channel": mcp_stats.get("avg_capacity_per_channel", 0),
-                    "avg_capacity_per_node": mcp_stats.get("avg_capacity_per_node", 0)
+                "network": network_stats,
+                "channels": channels_stats,
+                "local_node": {
+                    "pubkey": node_info.get("pubkey"),
+                    "alias": node_info.get("alias"),
+                    "num_active_channels": node_info.get("num_active_channels"),
+                    "num_inactive_channels": node_info.get("num_inactive_channels"),
+                    "block_height": node_info.get("block_height"),
+                    "synced_to_chain": node_info.get("synced_to_chain")
                 },
-                "lnrouter": {
-                    "num_nodes": lnrouter_stats.get("num_nodes", 0),
-                    "num_channels": lnrouter_stats.get("num_channels", 0),
-                    "total_capacity": lnrouter_stats.get("total_capacity", 0),
-                    "network_diameter": topology.get("network_diameter", -1),
-                    "density": topology.get("density", 0),
-                    "avg_degree": topology.get("avg_degree", 0),
-                    "largest_component_ratio": topology.get("largest_component_ratio", 0)
-                },
-                "top_nodes": topology.get("top_betweenness_nodes", [])[:10]
+                "source": network_stats.get("source") or "mixed"
             }
             
             return context
+        
         except Exception as e:
             logger.error(f"Erreur lors de la récupération du contexte réseau: {e}")
             return {
@@ -543,7 +373,7 @@ class NodeAggregator:
         for pubkey in pubkeys:
             try:
                 # Forcer la mise à jour du cache
-                await self.get_enriched_node(pubkey, force_refresh=True)
+                await self.get_enriched_node(pubkey)
                 results["successful"] += 1
             except Exception as e:
                 logger.error(f"Erreur lors de la synchronisation du nœud {pubkey}: {e}")

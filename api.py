@@ -13,6 +13,7 @@ from services.lnrouter_client import LNRouterClient
 from services.metrics_collector import MetricsCollector
 from services.node_aggregator import NodeAggregator
 from services.visualization_exporter import VisualizationExporter
+from services.data_source_factory import DataSourceFactory
 
 # Configuration du logging
 logging.basicConfig(
@@ -40,14 +41,15 @@ app.add_middleware(
 
 # Classes pour les services partagés
 class Services:
-    lnd_client = LNDClient()
-    lnrouter_client = LNRouterClient()
+    lnd_client = DataSourceFactory.get_lnd_client()
+    lnrouter_client = DataSourceFactory.get_lnrouter_client()
     metrics_collector = MetricsCollector(lnd_client=lnd_client)
     node_aggregator = NodeAggregator(lnd_client=lnd_client, lnrouter_client=lnrouter_client)
     visualization_exporter = VisualizationExporter(
         metrics_collector=metrics_collector, 
         node_aggregator=node_aggregator
     )
+    data_source = DataSourceFactory.get_data_source()
 
 services = Services()
 
@@ -72,16 +74,27 @@ async def get_node_metrics():
 
 # Routes pour les canaux
 @app.get("/api/v1/channels", tags=["Canaux"])
-async def list_channels(active: bool = Query(None, description="Filtrer les canaux actifs")):
+async def list_channels(
+    active: bool = Query(None, description="Filtrer les canaux actifs"),
+    source: str = Query(None, description="Source de données (local, mcp, auto)")
+):
     """Liste les canaux du nœud"""
     try:
-        active_only = active if active is not None else False
-        inactive_only = not active if active is not None else False
+        # Récupérer la source de données appropriée
+        data_source = DataSourceFactory.get_data_source(source)
         
-        return services.lnd_client.list_channels(
-            active_only=active_only,
-            inactive_only=inactive_only
-        )
+        # Récupérer les informations du nœud local
+        node_info = services.lnd_client.get_node_info()
+        pubkey = node_info.get("pubkey")
+        
+        # Récupérer les canaux depuis la source de données
+        channels = await data_source.get_node_channels(pubkey)
+        
+        # Filtrer par état si nécessaire
+        if active is not None:
+            channels = [c for c in channels if c.get("active") == active]
+            
+        return channels
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des canaux: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -156,30 +169,73 @@ async def get_fee_optimization():
 
 # Routes pour le réseau
 @app.get("/api/v1/network/graph", tags=["Réseau"])
-async def get_network_graph():
+async def get_network_graph(
+    source: str = Query(None, description="Source de données (local, mcp, auto)")
+):
     """Récupère les données pour un graphe du réseau local"""
     try:
-        return await services.visualization_exporter.generate_network_graph_dataset()
+        # Spécifier temporairement une source de données différente si demandé
+        original_data_source = services.visualization_exporter.data_source
+        if source:
+            services.visualization_exporter.data_source = DataSourceFactory.get_data_source(source)
+            
+        result = await services.visualization_exporter.generate_network_graph_dataset()
+        
+        # Restaurer la source de données originale
+        if source:
+            services.visualization_exporter.data_source = original_data_source
+            
+        return result
     except Exception as e:
+        # Restaurer la source de données originale en cas d'erreur
+        if source:
+            services.visualization_exporter.data_source = original_data_source
+            
         logger.error(f"Erreur lors de la génération du graphe réseau: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/network/stats", tags=["Réseau"])
-async def get_network_stats():
+async def get_network_stats(
+    source: str = Query(None, description="Source de données (local, mcp, auto)")
+):
     """Récupère les statistiques globales du réseau Lightning"""
     try:
-        return await services.node_aggregator.get_network_context()
+        # Utiliser la source de données spécifiée si demandé
+        data_source = DataSourceFactory.get_data_source(source) if source else services.data_source
+        return await data_source.get_network_stats()
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des statistiques réseau: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/network/node/{pubkey}", tags=["Réseau"])
-async def get_node_details(pubkey: str = Path(..., description="Clé publique du nœud")):
+async def get_node_details(
+    pubkey: str = Path(..., description="Clé publique du nœud"),
+    source: str = Query(None, description="Source de données (local, mcp, auto)")
+):
     """Récupère les détails d'un nœud spécifique"""
     try:
+        # Utiliser la source de données spécifiée si demandé
+        if source:
+            original_data_source = services.node_aggregator.data_source
+            services.node_aggregator.data_source = DataSourceFactory.get_data_source(source)
+            
         node = await services.node_aggregator.get_enriched_node(pubkey)
-        return node.to_dict()  # Convertir l'objet en dictionnaire pour la sérialisation JSON
+        
+        # Restaurer la source de données originale
+        if source:
+            services.node_aggregator.data_source = original_data_source
+            
+        if node is None:
+            raise HTTPException(status_code=404, detail=f"Nœud non trouvé: {pubkey}")
+            
+        return node
+    except HTTPException:
+        raise
     except Exception as e:
+        # Restaurer la source de données originale en cas d'erreur
+        if source:
+            services.node_aggregator.data_source = original_data_source
+            
         logger.error(f"Erreur lors de la récupération des détails du nœud {pubkey}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -248,11 +304,36 @@ async def get_node_status():
         graph = await services.lnrouter_client.get_graph(force_refresh=False)
         status["lnrouter"] = {
             "status": "ok",
-            "last_update": services.lnrouter_client.last_graph_update.isoformat() 
-                if services.lnrouter_client.last_graph_update else None
+            "nodes_count": len(graph.get("nodes", [])),
+            "channels_count": len(graph.get("channels", []))
         }
     except Exception as e:
         status["lnrouter"] = {"status": "error", "error": str(e)}
+    
+    # Vérifier les sources de données disponibles
+    try:
+        status["data_sources"] = {
+            "default": settings.DEFAULT_DATA_SOURCE,
+            "available": []
+        }
+        
+        # Vérifier la disponibilité des sources
+        try:
+            local_source = DataSourceFactory.get_data_source("local")
+            local_stats = await local_source.get_network_stats()
+            status["data_sources"]["available"].append("local")
+        except Exception:
+            pass
+            
+        try:
+            if settings.MCP_API_KEY:
+                mcp_source = DataSourceFactory.get_data_source("mcp")
+                mcp_stats = await mcp_source.get_network_stats()
+                status["data_sources"]["available"].append("mcp")
+        except Exception:
+            pass
+    except Exception as e:
+        status["data_sources"] = {"status": "error", "error": str(e)}
     
     return status
 

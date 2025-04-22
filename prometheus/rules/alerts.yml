@@ -1,0 +1,88 @@
+groups:
+  - name: daznode_alerts
+    rules:
+      # Alertes sur l'API
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latence API élevée"
+          description: "Le 95e percentile des temps de réponse API est supérieur à 1 seconde depuis 5 minutes"
+
+      - alert: HighAPIErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taux d'erreur API élevé"
+          description: "Plus de 5% des requêtes API échouent depuis 5 minutes"
+
+      # Alertes sur les sources de données
+      - alert: DataSourceUnavailable
+        expr: data_source_health_status == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Source de données indisponible"
+          description: "Une source de données est indisponible depuis 1 minute"
+
+      - alert: HighDataSourceLatency
+        expr: histogram_quantile(0.95, sum(rate(daznode_data_source_latency_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latence source de données élevée"
+          description: "95% des opérations sur {{ $labels.source }} prennent plus de 1 seconde"
+
+      # Alertes sur le réseau
+      - alert: NetworkNodesDecrease
+        expr: daznode_network_nodes_total < (daznode_network_nodes_total offset 1h) * 0.9
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Diminution du nombre de nœuds"
+          description: "Le nombre de nœuds a diminué de plus de 10% en 1 heure"
+
+      - alert: NetworkChannelsDecrease
+        expr: daznode_network_channels_total < (daznode_network_channels_total offset 1h) * 0.9
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Diminution du nombre de canaux"
+          description: "Le nombre de canaux a diminué de plus de 10% en 1 heure"
+
+      # Alertes sur le cache
+      - alert: HighCacheMissRate
+        expr: sum(rate(daznode_cache_misses_total[5m])) / sum(rate(daznode_cache_hits_total[5m] + daznode_cache_misses_total[5m])) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taux de cache miss élevé"
+          description: "Plus de 50% des requêtes au cache {{ $labels.cache_type }} échouent"
+
+      # Alertes système
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / process_virtual_memory_bytes * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Utilisation mémoire élevée"
+          description: "L'utilisation mémoire est supérieure à 80% depuis 5 minutes"
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Utilisation CPU élevée"
+          description: "L'utilisation CPU est supérieure à 80% depuis 5 minutes" 

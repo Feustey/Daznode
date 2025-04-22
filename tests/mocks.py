@@ -1,9 +1,8 @@
 """Mocks pour les tests"""
 
-import sys
 from unittest.mock import MagicMock
 
-# Créer un mock pour app.core.config.settings
+# Mock des settings
 mock_settings = MagicMock()
 mock_settings.NODE_PUBKEY = "02778f4a4eb3a2344b9fd8ee72e7ec5f03f803e5f5273e2e1a2af508"
 mock_settings.LND_HOST = "127.0.0.1"
@@ -19,19 +18,12 @@ mock_settings.FEUSTEY_API_KEY = "fake_feustey_api_key"
 mock_settings.BACKEND_CORS_ORIGINS = ["http://localhost:3000"]
 mock_settings.SECRET_KEY = "test_secret_key"
 
-# Créer un module mock pour app.core.config
+# Mock des modules
 class MockConfigModule:
     settings = mock_settings
 
-# Créer un mock pour le module app.core
 class MockCoreModule:
     config = MockConfigModule
 
-# Créer un mock pour le module app
 class MockAppModule:
-    core = MockCoreModule
-
-# Ajouter les mocks au sys.modules pour qu'ils soient trouvés lors des imports
-sys.modules['app'] = MockAppModule
-sys.modules['app.core'] = MockCoreModule
-sys.modules['app.core.config'] = MockConfigModule 
+    core = MockCoreModule 

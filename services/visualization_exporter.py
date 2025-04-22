@@ -12,6 +12,7 @@ from pathlib import Path
 from core.config import settings
 from services.metrics_collector import MetricsCollector
 from services.node_aggregator import NodeAggregator, EnrichedNode, EnrichedChannel
+from services.data_source_factory import DataSourceFactory
 
 logger = logging.getLogger(__name__)
 
@@ -41,567 +42,550 @@ class VisualizationExporter:
         
         # Garder une trace des datasets générés
         self._datasets = {}
+        
+        self.data_source = DataSourceFactory.get_data_source()
     
     # MÉTHODES DE GÉNÉRATION DE DATASETS
     
-    async def generate_network_graph_dataset(self) -> Dict:
-        """Génère un dataset pour visualisation de graphe réseau
-        
-        Returns:
-            Dataset au format adaptée pour les visualisations de graphe
-        """
+    async def generate_network_graph_dataset(self) -> Dict[str, Any]:
+        """Génère les données pour un graphe du réseau local"""
         try:
-            # Récupérer le nœud local enrichi
-            local_node = await self.node_aggregator.get_enriched_node(settings.NODE_PUBKEY)
+            # Récupérer les informations du nœud local
+            node_info = self.node_aggregator.lnd_client.get_node_info()
+            pubkey = node_info.get("pubkey")
             
-            # Récupérer tous les nœuds connectés
-            peer_pubkeys = [channel.node2_pub for channel in local_node.channels.values()]
+            # Récupérer tous les canaux du nœud local
+            channels = await self.data_source.get_node_channels(pubkey)
             
-            # Nœuds du graphe
-            nodes = [{
-                "id": local_node.pubkey,
-                "label": local_node.alias or local_node.pubkey[:8],
-                "color": local_node.color or "#3498db",
-                "size": 15,  # Plus grand pour le nœud local
-                "isLocal": True,
-                "totalCapacity": local_node.total_capacity
-            }]
+            # Récupérer des détails sur les nœuds connectés
+            peers = set()
+            for channel in channels:
+                remote_pubkey = channel.get("node2_pub")
+                if remote_pubkey != pubkey:
+                    peers.add(remote_pubkey)
             
-            # Arêtes du graphe (canaux)
+            # Récupérer des détails sur chaque pair
+            nodes = []
             edges = []
             
-            # Ajouter les nœuds pairs et les canaux
-            for channel in local_node.channels.values():
-                peer_pubkey = channel.node2_pub
-                
-                # Récupérer les informations du pair (de façon asynce idéalement)
-                try:
-                    peer_node = await self.node_aggregator.get_enriched_node(peer_pubkey)
-                    peer_alias = peer_node.alias
-                    peer_color = peer_node.color
-                except Exception:
-                    peer_alias = peer_pubkey[:8]
-                    peer_color = "#7f8c8d"  # Gris par défaut
-                
-                # Ajouter le nœud pair s'il n'est pas déjà dans le graphe
-                if not any(node["id"] == peer_pubkey for node in nodes):
-                    nodes.append({
-                        "id": peer_pubkey,
-                        "label": peer_alias or peer_pubkey[:8],
-                        "color": peer_color or "#7f8c8d",
-                        "size": 10,
-                        "isLocal": False,
-                        "capacityWithLocal": channel.capacity
-                    })
-                
-                # Ajouter le canal comme arête
-                edge_id = f"{local_node.pubkey}-{peer_pubkey}"
-                
-                # Calculer la largeur de l'arête basée sur la capacité
-                capacity_normalized = np.log1p(channel.capacity / 1000000) * 2  # log1p pour éviter log(0)
-                width = max(1, min(10, capacity_normalized))  # Limiter entre 1 et 10
-                
-                # Déterminer la couleur en fonction de l'équilibre
-                if channel.local_ratio > 0.7:
-                    color = "#e74c3c"  # Rouge pour déséquilibré sortant
-                elif channel.local_ratio < 0.3:
-                    color = "#2ecc71"  # Vert pour déséquilibré entrant 
-                else:
-                    color = "#3498db"  # Bleu pour équilibré
-                
-                edges.append({
-                    "id": edge_id,
-                    "source": local_node.pubkey,
-                    "target": peer_pubkey,
-                    "label": f"{channel.capacity:,} sats",
-                    "size": width,
-                    "color": color,
-                    "active": channel.active,
-                    "localRatio": channel.local_ratio,
-                    "capacity": channel.capacity,
-                    "stuckIndex": channel.stuck_index,
-                    "profitable": channel.is_profitable
-                })
+            # Ajouter le nœud local
+            nodes.append({
+                "id": pubkey,
+                "alias": node_info.get("alias", ""),
+                "color": node_info.get("color", "#000000"),
+                "size": 15,  # Taille plus grande pour le nœud local
+                "group": "local"
+            })
             
-            # Compiler le dataset
-            dataset = {
+            # Récupérer les données de chaque pair et ajouter aux graphes
+            for peer_pubkey in peers:
+                try:
+                    peer_data = await self.node_aggregator.get_enriched_node(peer_pubkey)
+                    
+                    if peer_data:
+                        # Ajouter le nœud
+                        nodes.append({
+                            "id": peer_pubkey,
+                            "alias": peer_data.get("alias", peer_pubkey[:10] + "..."),
+                            "color": peer_data.get("color", "#cccccc"),
+                            "size": 10,
+                            "group": "peer"
+                        })
+                        
+                        # Trouver le canal entre nous et ce pair
+                        for channel in channels:
+                            if channel.get("node2_pub") == peer_pubkey:
+                                # Ajouter une arête
+                                edges.append({
+                                    "id": str(channel.get("channel_id", "")),
+                                    "source": pubkey,
+                                    "target": peer_pubkey,
+                                    "capacity": channel.get("capacity", 0),
+                                    "active": channel.get("active", True),
+                                    "value": 1 + channel.get("capacity", 0) / 1000000  # Épaisseur proportionnelle à la capacité
+                                })
+                except Exception as e:
+                    logger.error(f"Erreur lors de la récupération des détails du pair {peer_pubkey}: {e}")
+            
+            return {
                 "timestamp": datetime.now().isoformat(),
                 "nodes": nodes,
                 "edges": edges,
-                "metadata": {
-                    "totalNodes": len(nodes),
-                    "totalEdges": len(edges),
-                    "totalCapacity": local_node.total_capacity
-                }
+                "source": "mixed"
             }
             
-            # Stocker le dataset
-            self._datasets["network_graph"] = dataset
-            
-            return dataset
         except Exception as e:
-            logger.error(f"Erreur lors de la génération du dataset de graphe réseau: {e}")
-            return {"error": str(e)}
+            logger.error(f"Erreur lors de la génération du dataset pour le graphe réseau: {e}")
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e),
+                "nodes": [],
+                "edges": []
+            }
     
-    async def generate_channel_performance_dataset(self, days: int = 30) -> Dict:
-        """Génère un dataset pour tableau de bord de performance des canaux
+    async def generate_channel_performance_dataset(self, days: int = 30) -> Dict[str, Any]:
+        """Génère les données pour analyser la performance des canaux
         
         Args:
-            days: Nombre de jours d'historique à considérer
-            
-        Returns:
-            Dataset avec les performances des canaux
+            days: Nombre de jours d'historique à inclure
         """
         try:
-            # Récupérer le nœud local enrichi
-            local_node = await self.node_aggregator.get_enriched_node(settings.NODE_PUBKEY)
+            # Vérifier que le collecteur de métriques est disponible
+            if not self.metrics_collector:
+                return {
+                    "timestamp": datetime.now().isoformat(),
+                    "error": "Collecteur de métriques non disponible",
+                    "channels": []
+                }
             
-            # Préparer les données de canaux
-            channels_data = []
+            # Récupérer les métriques des canaux
+            channels = await self.metrics_collector.collect_channel_metrics()
             
-            for channel in local_node.channels.values():
-                # Calculer des métriques de performance
-                forwarding_stats = channel.forwarding_stats
-                rebalancing_stats = channel.rebalancing_stats
-                profitability = channel.profitability
+            # Si disponible, récupérer l'historique des métriques
+            historical_metrics = []
+            try:
+                # Récupérer les tendances historiques
+                historical_metrics = await self.metrics_collector.generate_historical_trends("channel_balance", days=days)
+            except Exception as e:
+                logger.error(f"Erreur lors de la récupération des tendances historiques: {e}")
+            
+            # Agréger les données par canal
+            channel_performance = []
+            
+            for channel in channels:
+                channel_id = channel.get("channel_id")
                 
-                # Calculer des métriques dérivées
-                total_volume = forwarding_stats.get("total_amount_forwards", 0)
-                total_fees = forwarding_stats.get("total_fees", 0)
+                # Chercher ce canal dans l'historique
+                historical_data = []
+                for entry in historical_metrics:
+                    for ch in entry.get("channels", []):
+                        if ch.get("channel_id") == channel_id:
+                            historical_data.append({
+                                "timestamp": entry.get("timestamp"),
+                                "local_balance": ch.get("local_balance", 0),
+                                "remote_balance": ch.get("remote_balance", 0),
+                                "local_ratio": ch.get("local_ratio", 0)
+                            })
                 
-                effective_fee_rate = (total_fees / total_volume * 1000000) if total_volume > 0 else 0
-                volume_per_capacity = total_volume / channel.capacity if channel.capacity > 0 else 0
+                # Inclure les détails du pair
+                peer_alias = "Inconnu"
+                peer_pubkey = channel.get("remote_pubkey")
                 
-                # Estimer le potentiel de routage basé sur les forwarding passés et l'équilibre
-                routing_potential = 0
-                if channel.active:
-                    # Un canal bien équilibré a plus de potentiel
-                    balance_factor = 1 - abs(channel.local_ratio - 0.5) * 2
-                    # Canal avec historique de routage a plus de potentiel
-                    historical_factor = min(1, total_volume / (channel.capacity * 2))
-                    routing_potential = balance_factor * 0.7 + historical_factor * 0.3
+                try:
+                    peer = await self.node_aggregator.get_enriched_node(peer_pubkey)
+                    if peer:
+                        peer_alias = peer.get("alias", "Inconnu")
+                except Exception:
+                    pass
                 
-                # Ajouter les données du canal
-                channels_data.append({
-                    "channel_id": channel.channel_id,
-                    "peer_pubkey": channel.node2_pub,
-                    "peer_alias": None,  # À enrichir
-                    "capacity": channel.capacity,
-                    "local_balance": channel.local_balance,
-                    "remote_balance": channel.remote_balance,
-                    "local_ratio": channel.local_ratio,
-                    "active": channel.active,
-                    "private": channel.private,
-                    "initiator": channel.initiator,
-                    "age_days": None,  # À calculer si les données sont disponibles
-                    "forwards_count": forwarding_stats.get("total_forwards", 0),
-                    "forwards_volume": total_volume,
-                    "fees_earned": total_fees,
-                    "effective_fee_rate": effective_fee_rate,
-                    "volume_per_capacity": volume_per_capacity,
-                    "routing_potential": routing_potential,
-                    "stuck_index": channel.stuck_index,
-                    "last_forward_time": forwarding_stats.get("last_forward_time"),
-                    "net_profit": profitability.get("net_profit", 0),
-                    "roi": profitability.get("roi", 0),
-                    "profitable": channel.is_profitable
+                channel_performance.append({
+                    "channel_id": channel_id,
+                    "peer_pubkey": peer_pubkey,
+                    "peer_alias": peer_alias,
+                    "capacity": channel.get("capacity", 0),
+                    "local_balance": channel.get("local_balance", 0),
+                    "remote_balance": channel.get("remote_balance", 0),
+                    "active": channel.get("active", False),
+                    "local_ratio": channel.get("local_ratio", 0),
+                    "balance_score": channel.get("balance_score", 0),
+                    "total_satoshis_sent": channel.get("total_satoshis_sent", 0),
+                    "total_satoshis_received": channel.get("total_satoshis_received", 0),
+                    "history": historical_data
                 })
             
-            # Trier les canaux par différents critères pour faciliter l'analyse
-            sorted_by_profit = sorted(channels_data, key=lambda x: x["net_profit"], reverse=True)
-            sorted_by_volume = sorted(channels_data, key=lambda x: x["forwards_volume"], reverse=True)
-            sorted_by_stuck = sorted(channels_data, key=lambda x: x["stuck_index"], reverse=True)
-            sorted_by_potential = sorted(channels_data, key=lambda x: x["routing_potential"], reverse=True)
-            
-            # Compiler le dataset
-            dataset = {
+            return {
                 "timestamp": datetime.now().isoformat(),
-                "days_considered": days,
-                "channels": channels_data,
-                "sorted_views": {
-                    "by_profit": [c["channel_id"] for c in sorted_by_profit],
-                    "by_volume": [c["channel_id"] for c in sorted_by_volume],
-                    "by_stuck": [c["channel_id"] for c in sorted_by_stuck],
-                    "by_potential": [c["channel_id"] for c in sorted_by_potential]
-                },
-                "summary": {
-                    "total_channels": len(channels_data),
-                    "active_channels": sum(1 for c in channels_data if c["active"]),
-                    "profitable_channels": sum(1 for c in channels_data if c["profitable"]),
-                    "stuck_channels": sum(1 for c in channels_data if c["stuck_index"] > 70),
-                    "total_capacity": sum(c["capacity"] for c in channels_data),
-                    "total_local_balance": sum(c["local_balance"] for c in channels_data),
-                    "total_volume": sum(c["forwards_volume"] for c in channels_data),
-                    "total_fees": sum(c["fees_earned"] for c in channels_data)
-                }
+                "channels": channel_performance,
+                "days_history": days,
+                "source": "local"
             }
             
-            # Stocker le dataset
-            self._datasets["channel_performance"] = dataset
-            
-            return dataset
         except Exception as e:
             logger.error(f"Erreur lors de la génération du dataset de performance des canaux: {e}")
-            return {"error": str(e)}
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e),
+                "channels": []
+            }
     
-    async def generate_routing_heatmap_dataset(self, time_resolution: str = "hour") -> Dict:
-        """Génère un dataset pour carte de chaleur des activités de routage
+    async def generate_routing_heatmap_dataset(self, time_resolution: str = "hour") -> Dict[str, Any]:
+        """Génère les données pour une heatmap de routage
         
         Args:
             time_resolution: Résolution temporelle ('hour', 'day', 'week')
-            
-        Returns:
-            Dataset pour carte de chaleur des activités de routage
         """
         try:
-            # Récupérer l'historique des forwards
-            forwards = self.metrics_collector.lnd_client.get_forwarding_history(limit=10000)
-            forwarding_events = forwards.get("forwarding_events", [])
+            # Vérifier la validité de la résolution
+            valid_resolutions = ["hour", "day", "week"]
+            if time_resolution not in valid_resolutions:
+                time_resolution = "hour"
             
-            if not forwarding_events:
-                logger.warning("Aucun événement de forwarding trouvé")
-                return {"error": "Aucun événement de forwarding trouvé"}
+            # Déterminer la période et l'intervalle
+            now = datetime.now()
             
-            # Convertir les timestamps en objets datetime
-            for event in forwarding_events:
-                if isinstance(event["timestamp"], str):
-                    event["timestamp"] = datetime.fromisoformat(event["timestamp"])
-            
-            # Trier par timestamp
-            forwarding_events.sort(key=lambda x: x["timestamp"])
-            
-            # Déterminer la période couverte
-            start_time = forwarding_events[0]["timestamp"]
-            end_time = forwarding_events[-1]["timestamp"]
-            
-            # Convertir en dataframe pour faciliter l'analyse
-            df = pd.DataFrame(forwarding_events)
-            
-            # Convertir les timestamps en datetime si ce n'est pas déjà fait
-            if not pd.api.types.is_datetime64_dtype(df["timestamp"]):
-                df["timestamp"] = pd.to_datetime(df["timestamp"])
-            
-            # Définir les buckets temporels en fonction de la résolution
             if time_resolution == "hour":
-                df["time_bucket"] = df["timestamp"].dt.floor("H")
-                bucket_format = "%Y-%m-%d %H:00"
+                start_time = now - timedelta(days=2)
+                interval_seconds = 3600  # 1 heure
             elif time_resolution == "day":
-                df["time_bucket"] = df["timestamp"].dt.floor("D")
-                bucket_format = "%Y-%m-%d"
-            elif time_resolution == "week":
-                df["time_bucket"] = df["timestamp"].dt.to_period("W").dt.start_time
-                bucket_format = "%Y-%m-%d"
-            else:
-                logger.warning(f"Résolution temporelle non reconnue: {time_resolution}, utilisation de 'hour'")
-                df["time_bucket"] = df["timestamp"].dt.floor("H")
-                bucket_format = "%Y-%m-%d %H:00"
+                start_time = now - timedelta(days=30)
+                interval_seconds = 86400  # 1 jour
+            else:  # semaine
+                start_time = now - timedelta(days=365)
+                interval_seconds = 604800  # 1 semaine
             
-            # Agréger par bucket temporel et canal
-            heatmap_data = df.groupby(["time_bucket", "chan_id_out"]).agg({
-                "amt_out": "sum",
-                "fee": "sum",
-                "chan_id_out": "count"
-            }).rename(columns={"chan_id_out": "count"}).reset_index()
+            # Récupérer l'historique de forwarding
+            forwarding_history = self.node_aggregator.lnd_client.get_forwarding_history(
+                start_time=int(start_time.timestamp()),
+                end_time=int(now.timestamp()),
+                limit=10000
+            )
             
-            # Créer une liste de tous les buckets temporels pour une visualisation complète
-            all_buckets = pd.date_range(start=start_time.floor("H"), end=end_time.ceil("H"), freq=time_resolution[0].upper())
+            # Organiser les données pour la heatmap
+            events = forwarding_history.get("forwarding_events", [])
             
-            # Obtenir la liste unique des canaux
-            unique_channels = df["chan_id_out"].unique()
+            # Grouper par intervalle de temps
+            time_buckets = {}
             
-            # Créer des entrées pour toutes les combinaisons (pour une heatmap complète)
-            full_heatmap_data = []
-            
-            for time_bucket in all_buckets:
-                bucket_str = time_bucket.strftime(bucket_format)
-                
-                # Chercher les données existantes pour ce bucket
-                bucket_data = heatmap_data[heatmap_data["time_bucket"] == time_bucket]
-                
-                if not bucket_data.empty:
-                    # Il y a des données pour ce bucket
-                    for _, row in bucket_data.iterrows():
-                        full_heatmap_data.append({
-                            "time_bucket": bucket_str,
-                            "channel_id": str(row["chan_id_out"]),
-                            "amount": int(row["amt_out"]),
-                            "fee": int(row["fee"]),
-                            "count": int(row["count"])
-                        })
+            for event in events:
+                timestamp = event.get("timestamp", 0)
+                if not timestamp:
+                    continue
                     
-                    # Ajouter des entrées avec zéro pour les canaux sans activité
-                    active_channels = set(bucket_data["chan_id_out"])
-                    for channel in unique_channels:
-                        if channel not in active_channels:
-                            full_heatmap_data.append({
-                                "time_bucket": bucket_str,
-                                "channel_id": str(channel),
-                                "amount": 0,
-                                "fee": 0,
-                                "count": 0
-                            })
-                else:
-                    # Aucune donnée pour ce bucket, ajouter des zéros pour tous les canaux
-                    for channel in unique_channels:
-                        full_heatmap_data.append({
-                            "time_bucket": bucket_str,
-                            "channel_id": str(channel),
-                            "amount": 0,
-                            "fee": 0,
-                            "count": 0
-                        })
-            
-            # Compiler le dataset
-            dataset = {
-                "timestamp": datetime.now().isoformat(),
-                "time_resolution": time_resolution,
-                "start_time": start_time.isoformat(),
-                "end_time": end_time.isoformat(),
-                "channels": [str(c) for c in unique_channels],
-                "heatmap_data": full_heatmap_data,
-                "metadata": {
-                    "total_forwards": len(forwarding_events),
-                    "total_amount": int(df["amt_out"].sum()),
-                    "total_fees": int(df["fee"].sum()),
-                    "active_channels": len(unique_channels)
-                }
-            }
-            
-            # Stocker le dataset
-            self._datasets["routing_heatmap"] = dataset
-            
-            return dataset
-        except Exception as e:
-            logger.error(f"Erreur lors de la génération du dataset de heatmap: {e}")
-            return {"error": str(e)}
-    
-    async def generate_fee_optimization_dataset(self) -> Dict:
-        """Génère un dataset pour optimisation des frais
-        
-        Returns:
-            Dataset pour optimisation des frais
-        """
-        try:
-            # Récupérer le nœud local enrichi
-            local_node = await self.node_aggregator.get_enriched_node(settings.NODE_PUBKEY)
-            
-            # Récupérer les données de forwarding
-            forwards = self.metrics_collector.lnd_client.get_forwarding_history(limit=5000)
-            forwarding_events = forwards.get("forwarding_events", [])
-            
-            # Agréger les données par canal
-            channel_stats = {}
-            
-            for event in forwarding_events:
-                chan_id_out = str(event.get("chan_id_out"))
+                # Calculer l'intervalle de temps
+                bucket_timestamp = timestamp - (timestamp % interval_seconds)
+                bucket_key = str(bucket_timestamp)
                 
-                if chan_id_out not in channel_stats:
-                    channel_stats[chan_id_out] = {
-                        "total_forwards": 0,
+                # Initialiser le bucket si nécessaire
+                if bucket_key not in time_buckets:
+                    time_buckets[bucket_key] = {
+                        "timestamp": bucket_key,
+                        "count": 0,
                         "total_amount": 0,
-                        "total_fees": 0,
-                        "fee_rate_sum": 0,  # Pour calculer la moyenne
+                        "total_fees": 0
                     }
                 
-                stats = channel_stats[chan_id_out]
-                stats["total_forwards"] += 1
-                stats["total_amount"] += event.get("amt_out", 0)
-                stats["total_fees"] += event.get("fee", 0)
-                
-                # Calculer le taux de frais pour cet événement
-                amt_out = event.get("amt_out", 0)
-                fee = event.get("fee", 0)
-                if amt_out > 0:
-                    fee_rate = fee / amt_out * 1000000  # En ppm
-                    stats["fee_rate_sum"] += fee_rate
+                # Mettre à jour les statistiques
+                time_buckets[bucket_key]["count"] += 1
+                time_buckets[bucket_key]["total_amount"] += event.get("amt_out", 0)
+                time_buckets[bucket_key]["total_fees"] += event.get("fee", 0)
             
-            # Calculer des métriques supplémentaires
-            for chan_id, stats in channel_stats.items():
-                if stats["total_forwards"] > 0:
-                    stats["avg_fee_rate"] = stats["fee_rate_sum"] / stats["total_forwards"]
-                else:
-                    stats["avg_fee_rate"] = 0
-                
-                if stats["total_amount"] > 0:
-                    stats["effective_fee_rate"] = stats["total_fees"] / stats["total_amount"] * 1000000
-                else:
-                    stats["effective_fee_rate"] = 0
+            # Convertir en liste pour la sortie
+            heatmap_data = list(time_buckets.values())
             
-            # Récupérer les données de canaux pour compléter
-            channels_data = []
+            # Trier par timestamp
+            heatmap_data.sort(key=lambda x: int(x["timestamp"]))
             
-            for channel in local_node.channels.values():
-                channel_id = channel.channel_id
-                
-                # Récupérer les statistiques de forwarding si disponibles
-                stats = channel_stats.get(channel_id, {
-                    "total_forwards": 0,
-                    "total_amount": 0,
-                    "total_fees": 0,
-                    "avg_fee_rate": 0,
-                    "effective_fee_rate": 0
-                })
-                
-                # Récupérer la politique de frais actuelle
-                fee_rate = None
-                base_fee = None
-                
-                if "lnd_data" in channel and "policy" in channel.lnd_data:
-                    policy = channel.lnd_data["policy"]
-                    fee_rate = policy.get("fee_rate_milli_msat", 0) / 1000  # Convertir en ppm
-                    base_fee = policy.get("fee_base_msat", 0) / 1000  # Convertir en sats
-                
-                # Calculer des suggestions de frais basées sur la performance
-                suggested_fee_rate = None
-                
-                if stats["total_forwards"] > 0:
-                    # Si le canal est actif, suggérer en fonction de l'utilisation
-                    if stats["total_forwards"] > 10:
-                        # Canal très utilisé, optimiser pour le revenu
-                        suggested_fee_rate = stats["effective_fee_rate"] * 1.2  # +20%
-                    else:
-                        # Canal peu utilisé, optimiser pour l'attractivité
-                        suggested_fee_rate = stats["effective_fee_rate"] * 0.8  # -20%
-                else:
-                    # Si le canal n'est pas utilisé, suggérer un taux plus bas ou celui des pairs
-                    suggested_fee_rate = 10  # Valeur par défaut basse
-                
-                # Limiter les suggestions à des valeurs raisonnables
-                if suggested_fee_rate is not None:
-                    suggested_fee_rate = max(1, min(5000, round(suggested_fee_rate)))
-                
-                # Ajouter les données du canal
-                channels_data.append({
-                    "channel_id": channel_id,
-                    "peer_pubkey": channel.node2_pub,
-                    "capacity": channel.capacity,
-                    "local_ratio": channel.local_ratio,
-                    "active": channel.active,
-                    "private": channel.private,
-                    "current_fee_rate": fee_rate,
-                    "current_base_fee": base_fee,
-                    "total_forwards": stats["total_forwards"],
-                    "total_amount": stats["total_amount"],
-                    "total_fees": stats["total_fees"],
-                    "avg_fee_rate": stats["avg_fee_rate"],
-                    "effective_fee_rate": stats["effective_fee_rate"],
-                    "suggested_fee_rate": suggested_fee_rate,
-                    "suggested_base_fee": 1,  # Base fee standard
-                    "revenue_impact": None  # À calculer
-                })
-            
-            # Compiler le dataset
-            dataset = {
+            return {
                 "timestamp": datetime.now().isoformat(),
-                "channels": channels_data,
-                "metadata": {
-                    "total_channels": len(channels_data),
-                    "active_forwarding_channels": sum(1 for c in channels_data if c["total_forwards"] > 0),
-                    "total_forwards": sum(c["total_forwards"] for c in channels_data),
-                    "total_fees": sum(c["total_fees"] for c in channels_data),
-                    "avg_effective_fee_rate": sum(c["effective_fee_rate"] for c in channels_data if c["total_forwards"] > 0) / 
-                                             max(1, sum(1 for c in channels_data if c["total_forwards"] > 0))
-                }
+                "data": heatmap_data,
+                "resolution": time_resolution,
+                "source": "local"
             }
             
-            # Stocker le dataset
-            self._datasets["fee_optimization"] = dataset
-            
-            return dataset
         except Exception as e:
-            logger.error(f"Erreur lors de la génération du dataset d'optimisation des frais: {e}")
-            return {"error": str(e)}
+            logger.error(f"Erreur lors de la génération du dataset pour la heatmap: {e}")
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e),
+                "data": []
+            }
     
-    async def generate_periodic_report(self, report_type: str, parameters: Dict = None) -> Union[str, Dict]:
-        """Génère un rapport périodique basé sur les données collectées
+    async def generate_fee_optimization_dataset(self) -> Dict[str, Any]:
+        """Génère des suggestions d'optimisation de frais"""
+        try:
+            # Récupérer les métriques détaillées des canaux
+            if self.metrics_collector:
+                channels = await self.metrics_collector.collect_channel_metrics()
+            else:
+                # Si metrics_collector n'est pas disponible, récupérer les canaux depuis le client LND
+                channels_raw = self.node_aggregator.lnd_client.list_channels()
+                channels = []
+                
+                for c in channels_raw:
+                    capacity = c.get("capacity", 0)
+                    local_balance = c.get("local_balance", 0)
+                    remote_balance = c.get("remote_balance", 0)
+                    
+                    local_ratio = local_balance / capacity if capacity > 0 else 0
+                    remote_ratio = remote_balance / capacity if capacity > 0 else 0
+                    balance_score = 1 - abs(0.5 - local_ratio) * 2
+                    
+                    channels.append({
+                        "channel_id": c.get("channel_id"),
+                        "remote_pubkey": c.get("remote_pubkey"),
+                        "capacity": capacity,
+                        "local_balance": local_balance,
+                        "remote_balance": remote_balance,
+                        "local_ratio": local_ratio,
+                        "remote_ratio": remote_ratio,
+                        "balance_score": balance_score,
+                        "active": c.get("active", False),
+                        "fee_per_kw": c.get("fee_per_kw", 0)
+                    })
+            
+            # Récupérer les statistiques de forwarding pour identifier les canaux actifs
+            end_time = int(datetime.now().timestamp())
+            start_time = end_time - 30 * 24 * 3600  # 30 jours
+            
+            forwards = self.node_aggregator.lnd_client.get_forwarding_history(
+                start_time=start_time,
+                end_time=end_time,
+                limit=10000
+            )
+            
+            # Compter les forwards par canal
+            channel_forwards = {}
+            for event in forwards.get("forwarding_events", []):
+                chan_id_in = str(event.get("chan_id_in"))
+                chan_id_out = str(event.get("chan_id_out"))
+                
+                if chan_id_in not in channel_forwards:
+                    channel_forwards[chan_id_in] = {"in": 0, "out": 0, "fees": 0}
+                if chan_id_out not in channel_forwards:
+                    channel_forwards[chan_id_out] = {"in": 0, "out": 0, "fees": 0}
+                
+                channel_forwards[chan_id_in]["in"] += 1
+                channel_forwards[chan_id_in]["fees"] += event.get("fee", 0)
+                channel_forwards[chan_id_out]["out"] += 1
+            
+            # Générer des suggestions d'optimisation
+            suggestions = []
+            
+            for channel in channels:
+                channel_id = str(channel.get("channel_id"))
+                remote_pubkey = channel.get("remote_pubkey")
+                
+                # Récupérer les détails du pair
+                peer_alias = "Inconnu"
+                try:
+                    peer = await self.node_aggregator.get_enriched_node(remote_pubkey)
+                    if peer:
+                        peer_alias = peer.get("alias", "Inconnu")
+                except Exception:
+                    pass
+                
+                # Analyser le canal pour des suggestions
+                current_fee = channel.get("fee_per_kw", 0)
+                balance_score = channel.get("balance_score", 0)
+                local_ratio = channel.get("local_ratio", 0)
+                
+                # Statistiques de forwarding
+                forwards_stats = channel_forwards.get(channel_id, {"in": 0, "out": 0, "fees": 0})
+                
+                # Générer des suggestions basées sur différents critères
+                suggestion = {
+                    "channel_id": channel_id,
+                    "peer_pubkey": remote_pubkey,
+                    "peer_alias": peer_alias,
+                    "current_fee": current_fee,
+                    "balance_score": balance_score,
+                    "local_ratio": local_ratio,
+                    "forwarding_in": forwards_stats.get("in", 0),
+                    "forwarding_out": forwards_stats.get("out", 0),
+                    "fees_earned": forwards_stats.get("fees", 0),
+                    "recommendations": []
+                }
+                
+                # 1. Canal inactif en forwarding
+                if forwards_stats.get("in", 0) == 0 and forwards_stats.get("out", 0) == 0:
+                    suggestion["recommendations"].append({
+                        "type": "inactive",
+                        "message": "Canal inactif, envisager d'ajuster les frais pour attirer du trafic",
+                        "suggested_fee": max(1, current_fee // 2),
+                        "confidence": "medium"
+                    })
+                
+                # 2. Canal déséquilibré avec trafic entrant
+                if local_ratio > 0.7 and forwards_stats.get("in", 0) > 0:
+                    suggestion["recommendations"].append({
+                        "type": "balance_in",
+                        "message": "Canal déséquilibré avec trafic entrant, augmenter les frais",
+                        "suggested_fee": current_fee * 2,
+                        "confidence": "high"
+                    })
+                
+                # 3. Canal déséquilibré avec trafic sortant
+                if local_ratio < 0.3 and forwards_stats.get("out", 0) > 0:
+                    suggestion["recommendations"].append({
+                        "type": "balance_out",
+                        "message": "Canal déséquilibré avec trafic sortant, réduire les frais",
+                        "suggested_fee": max(1, current_fee // 2),
+                        "confidence": "high"
+                    })
+                
+                # 4. Canal bien équilibré mais peu actif
+                if balance_score > 0.7 and forwards_stats.get("in", 0) + forwards_stats.get("out", 0) < 10:
+                    suggestion["recommendations"].append({
+                        "type": "balanced_inactive",
+                        "message": "Canal bien équilibré mais peu actif, réduire légèrement les frais",
+                        "suggested_fee": max(1, int(current_fee * 0.8)),
+                        "confidence": "medium"
+                    })
+                
+                suggestions.append(suggestion)
+            
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "suggestions": suggestions,
+                "source": "local"
+            }
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération des suggestions d'optimisation: {e}")
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e),
+                "suggestions": []
+            }
+    
+    async def generate_periodic_report(self, report_type: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Génère un rapport périodique
         
         Args:
             report_type: Type de rapport ('daily', 'weekly', 'monthly')
             parameters: Paramètres spécifiques au rapport
-            
-        Returns:
-            Chemin du rapport généré ou données du rapport
         """
         parameters = parameters or {}
         
         try:
+            # Déterminer la période
+            now = datetime.now()
+            
             if report_type == "daily":
-                # Rapport quotidien standard
-                return await self._generate_daily_report(parameters)
+                start_time = now - timedelta(days=1)
+                period_name = "Quotidien"
             elif report_type == "weekly":
-                # Rapport hebdomadaire plus détaillé
-                return await self._generate_weekly_report(parameters)
+                start_time = now - timedelta(days=7)
+                period_name = "Hebdomadaire"
             elif report_type == "monthly":
-                # Rapport mensuel avec analyse approfondie
-                return await self._generate_monthly_report(parameters)
+                start_time = now - timedelta(days=30)
+                period_name = "Mensuel"
             else:
-                logger.warning(f"Type de rapport non reconnu: {report_type}")
-                return {"error": f"Type de rapport non reconnu: {report_type}"}
-        except Exception as e:
-            logger.error(f"Erreur lors de la génération du rapport périodique: {e}")
-            return {"error": str(e)}
-    
-    async def _generate_daily_report(self, parameters: Dict) -> Dict:
-        """Génère un rapport quotidien
-        
-        Args:
-            parameters: Paramètres spécifiques au rapport
+                return {
+                    "error": f"Type de rapport non reconnu: {report_type}"
+                }
             
-        Returns:
-            Données du rapport
-        """
-        # Récupérer les données nécessaires
-        node_metrics = await self.metrics_collector.collect_node_metrics()
-        forwarding_metrics = await self.metrics_collector.collect_forwarding_metrics(time_window_hours=24)
-        
-        # Compiler le rapport
-        report = {
-            "timestamp": datetime.now().isoformat(),
-            "report_type": "daily",
-            "node_metrics": {
-                "total_capacity": node_metrics.get("total_capacity", 0),
-                "active_channels": node_metrics.get("num_active_channels", 0),
-                "local_balance_ratio": node_metrics.get("local_ratio", 0),
-            },
-            "forwarding_metrics": {
-                "total_forwards": forwarding_metrics.get("total_forwards", 0),
-                "total_amount_forwarded": forwarding_metrics.get("total_amount_forwarded", 0),
-                "total_fees_earned": forwarding_metrics.get("total_fees_earned", 0),
-                "avg_fee_rate_ppm": forwarding_metrics.get("avg_fee_rate_ppm", 0),
-                "top_channels_in": dict(sorted(forwarding_metrics.get("channels_in", {}).items(), 
-                                              key=lambda x: x[1]["amount"], reverse=True)[:5]),
-                "top_channels_out": dict(sorted(forwarding_metrics.get("channels_out", {}).items(), 
-                                               key=lambda x: x[1]["amount"], reverse=True)[:5])
+            # Structure du rapport
+            report = {
+                "report_type": report_type,
+                "period_name": period_name,
+                "timestamp": now.isoformat(),
+                "start_time": start_time.isoformat(),
+                "end_time": now.isoformat(),
+                "node_metrics": {},
+                "channels_metrics": {},
+                "routing_metrics": {},
+                "recommendations": [],
+                "source": "local"
             }
-        }
-        
-        return report
-    
-    async def _generate_weekly_report(self, parameters: Dict) -> Dict:
-        """Génère un rapport hebdomadaire
-        
-        Args:
-            parameters: Paramètres spécifiques au rapport
             
-        Returns:
-            Données du rapport
-        """
-        # Implémenter le rapport hebdomadaire
-        # C'est un placeholder pour le moment
-        return {"message": "Rapport hebdomadaire non implémenté"}
-    
-    async def _generate_monthly_report(self, parameters: Dict) -> Dict:
-        """Génère un rapport mensuel
-        
-        Args:
-            parameters: Paramètres spécifiques au rapport
+            # 1. Récupérer les métriques du nœud
+            if self.metrics_collector:
+                node_metrics = await self.metrics_collector.collect_node_metrics()
+                report["node_metrics"] = node_metrics
             
-        Returns:
-            Données du rapport
-        """
-        # Implémenter le rapport mensuel
-        # C'est un placeholder pour le moment
-        return {"message": "Rapport mensuel non implémenté"}
+            # 2. Récupérer les métriques des canaux
+            if self.metrics_collector:
+                channels_metrics = await self.metrics_collector.collect_channel_metrics()
+                
+                # Agréger les métriques des canaux
+                total_capacity = sum(c.get("capacity", 0) for c in channels_metrics)
+                total_local_balance = sum(c.get("local_balance", 0) for c in channels_metrics)
+                active_channels = [c for c in channels_metrics if c.get("active", False)]
+                
+                report["channels_metrics"] = {
+                    "total_channels": len(channels_metrics),
+                    "active_channels": len(active_channels),
+                    "total_capacity": total_capacity,
+                    "local_balance": total_local_balance,
+                    "local_ratio": total_local_balance / total_capacity if total_capacity > 0 else 0,
+                    "channels": channels_metrics
+                }
+            
+            # 3. Récupérer les métriques de routage
+            start_time_unix = int(start_time.timestamp())
+            end_time_unix = int(now.timestamp())
+            
+            forwarding_history = self.node_aggregator.lnd_client.get_forwarding_history(
+                start_time=start_time_unix,
+                end_time=end_time_unix,
+                limit=10000
+            )
+            
+            events = forwarding_history.get("forwarding_events", [])
+            
+            # Agréger les statistiques de routage
+            total_forwards = len(events)
+            total_amount = sum(event.get("amt_out", 0) for event in events)
+            total_fees = sum(event.get("fee", 0) for event in events)
+            
+            # Identifier les canaux les plus actifs
+            channel_stats = {}
+            for event in events:
+                chan_id_in = str(event.get("chan_id_in"))
+                chan_id_out = str(event.get("chan_id_out"))
+                
+                for chan_id in [chan_id_in, chan_id_out]:
+                    if chan_id not in channel_stats:
+                        channel_stats[chan_id] = {
+                            "count": 0,
+                            "amount": 0,
+                            "fees": 0
+                        }
+                
+                channel_stats[chan_id_in]["count"] += 1
+                channel_stats[chan_id_in]["amount"] += event.get("amt_in", 0)
+                channel_stats[chan_id_in]["fees"] += event.get("fee", 0)
+                
+                channel_stats[chan_id_out]["count"] += 1
+                channel_stats[chan_id_out]["amount"] += event.get("amt_out", 0)
+            
+            # Trier les canaux par nombre de forwards
+            top_channels = []
+            for chan_id, stats in channel_stats.items():
+                for channel in report["channels_metrics"].get("channels", []):
+                    if str(channel.get("channel_id")) == chan_id:
+                        top_channels.append({
+                            "channel_id": chan_id,
+                            "remote_pubkey": channel.get("remote_pubkey"),
+                            "count": stats["count"],
+                            "amount": stats["amount"],
+                            "fees": stats["fees"]
+                        })
+                        break
+            
+            # Trier et limiter
+            top_channels.sort(key=lambda x: x["count"], reverse=True)
+            top_channels = top_channels[:10]
+            
+            report["routing_metrics"] = {
+                "total_forwards": total_forwards,
+                "total_amount": total_amount,
+                "total_fees": total_fees,
+                "avg_fee_rate": total_fees / total_amount * 1000000 if total_amount > 0 else 0,
+                "top_channels": top_channels
+            }
+            
+            # 4. Générer des recommandations
+            fee_optimization = await self.generate_fee_optimization_dataset()
+            suggestions = fee_optimization.get("suggestions", [])
+            
+            # Ne garder que les recommandations avec au moins une suggestion
+            suggestions_with_recs = [s for s in suggestions if s.get("recommendations")]
+            
+            # Trier par nombre de recommendations et limiter
+            suggestions_with_recs.sort(key=lambda x: len(x.get("recommendations", [])), reverse=True)
+            report["recommendations"] = suggestions_with_recs[:5]
+            
+            return report
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération du rapport {report_type}: {e}")
+            return {
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e),
+                "report_type": report_type
+            }
     
     # MÉTHODES D'EXPORT
     

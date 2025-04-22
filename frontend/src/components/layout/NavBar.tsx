@@ -10,6 +10,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'General', path: '/' },
+  { name: 'Overview', path: '/overview' },
+  { name: 'Trends', path: '/trends' },
   { name: 'Channels', path: '/channels' },
   { name: 'Channel Map', path: '/channel-map' },
   { name: 'Closed Channels', path: '/closed-channels' },

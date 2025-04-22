@@ -2,6 +2,11 @@
 import uvicorn
 import argparse
 import logging
+import os
+import sys
+
+# Ajouter le dossier proto au PYTHONPATH
+sys.path.append(os.path.join(os.path.dirname(__file__), "proto"))
 
 if __name__ == "__main__":
     # Configuration de l'argument parser

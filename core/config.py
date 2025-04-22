@@ -23,6 +23,10 @@ class Settings(BaseSettings):
             return v
         raise ValueError(v)
 
+    # SOURCE DE DONNÉES
+    # Options: "local", "mcp", "auto"
+    DEFAULT_DATA_SOURCE: str = "auto"
+    
     # MCP API CONFIGURATION
     MCP_API_URL: str = "https://api.mcp.network"
     MCP_API_KEY: Optional[str] = None

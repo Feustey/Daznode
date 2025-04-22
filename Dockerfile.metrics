@@ -1,0 +1,33 @@
+FROM python:3.10-slim
+
+# Installer des dépendances système
+RUN apt-get update && apt-get install -y \
+    gcc \
+    python3-dev \
+    libffi-dev \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Créer le répertoire de l'application
+WORKDIR /app
+
+# Copier les fichiers de requirements
+COPY requirements.txt .
+
+# Installer les dépendances Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Créer les répertoires nécessaires
+RUN mkdir -p /data/cache
+
+# Copier le code source
+COPY . .
+
+# Variables d'environnement
+ENV PYTHONPATH=/app
+ENV DATA_DIR=/data
+ENV METRICS_COLLECTOR=true
+
+# Commande par défaut
+CMD ["python", "-m", "services.metrics_collector"] 

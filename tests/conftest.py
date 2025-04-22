@@ -7,13 +7,13 @@ import sys
 # Ajouter le répertoire racine au PYTHONPATH
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Importer les mocks pour app.core.config.settings
-from tests.mocks import mock_settings, MockConfigModule, MockCoreModule, MockAppModule
+# Importer les mocks
+from .mocks import mock_settings, MockConfigModule, MockCoreModule, MockAppModule
 
 # S'assurer que les modules mockés sont dans sys.modules
-sys.modules['app'] = MockAppModule
-sys.modules['app.core'] = MockCoreModule 
-sys.modules['app.core.config'] = MockConfigModule
+sys.modules['app'] = MockAppModule()
+sys.modules['app.core'] = MockCoreModule()
+sys.modules['app.core.config'] = MockConfigModule()
 
 @pytest.fixture
 def mock_env_vars(monkeypatch):

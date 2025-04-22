@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package lnrpc;
+
+service Lightning {
+    rpc GetInfo (GetInfoRequest) returns (GetInfoResponse) {}
+    rpc ListChannels (ListChannelsRequest) returns (ListChannelsResponse) {}
+    rpc ForwardingHistory (ForwardingHistoryRequest) returns (ForwardingHistoryResponse) {}
+}
+
+message GetInfoRequest {}
+
+message GetInfoResponse {
+    string identity_pubkey = 1;
+    string alias = 2;
+    uint32 block_height = 3;
+    bool synced_to_chain = 4;
+    bool synced_to_graph = 5;
+    uint32 num_active_channels = 6;
+    uint32 num_inactive_channels = 7;
+    uint32 num_pending_channels = 8;
+    string version = 9;
+    repeated string chains = 10;
+    repeated string uris = 11;
+}
+
+message ListChannelsRequest {
+    bool active_only = 1;
+    bool inactive_only = 2;
+}
+
+message ListChannelsResponse {
+    repeated Channel channels = 1;
+}
+
+message Channel {
+    uint64 channel_id = 1;
+    string remote_pubkey = 2;
+    int64 capacity = 3;
+    int64 local_balance = 4;
+    int64 remote_balance = 5;
+    int64 unsettled_balance = 6;
+    bool active = 7;
+    bool private = 8;
+    bool initiator = 9;
+    int64 total_satoshis_sent = 10;
+    int64 total_satoshis_received = 11;
+    uint32 num_updates = 12;
+    int64 commit_fee = 13;
+    int64 commit_weight = 14;
+    int64 fee_per_kw = 15;
+    string chan_status_flags = 16;
+    int64 local_chan_reserve_sat = 17;
+    int64 remote_chan_reserve_sat = 18;
+    string channel_point = 19;
+}
+
+message ForwardingHistoryRequest {
+    uint64 start_time = 1;
+    uint64 end_time = 2;
+    uint32 limit = 3;
+}
+
+message ForwardingHistoryResponse {
+    repeated ForwardingEvent forwarding_events = 1;
+}
+
+message ForwardingEvent {
+    uint64 timestamp = 1;
+    uint64 chan_id_in = 2;
+    uint64 chan_id_out = 3;
+    int64 amt_in = 4;
+    int64 amt_out = 5;
+    int64 fee = 6;
+    int64 fee_msat = 7;
+} 

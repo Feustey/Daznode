@@ -3,55 +3,50 @@ from unittest.mock import patch, Mock, MagicMock
 import os
 from datetime import datetime
 
-# Mocker les modules lnrpc et app.core.config
-@patch('services.lnd_client.lnrpc')
-@patch('services.lnd_client.settings')
+# Mocker les modules protobuf
+mock_ln = Mock()
+mock_lnrpc = Mock()
+mock_router = Mock()
+mock_routerrpc = Mock()
+
+with patch.dict('sys.modules', {
+    'lightning_pb2': mock_ln,
+    'lightning_pb2_grpc': mock_lnrpc,
+    'router_pb2': mock_router,
+    'router_pb2_grpc': mock_routerrpc
+}):
+    from services.lnd_client import LNDClient
+
 class TestLNDClient(unittest.TestCase):
     """Tests unitaires pour le client LND"""
     
     def setUp(self):
         """Configuration initiale pour chaque test"""
-        # Importer après les patches
-        from services.lnd_client import LNDClient
-        
         # Créer un mock pour le stub
         self.mock_stub = Mock()
         
-        # Patcher l'initialisation de LNDClient pour qu'elle retourne notre mock_stub
-        def mock_init_with_stub(*args, **kwargs):
-            lnd_client = LNDClient(*args, **kwargs)
-            lnd_client.stub = self.mock_stub
-            return lnd_client
-        
-        # Appliquer notre patch
-        self.patcher = patch('services.lnd_client.LNDClient.__new__', 
-                              side_effect=lambda cls, *args, **kwargs: mock_init_with_stub(*args, **kwargs))
-        self.mock_init = self.patcher.start()
-        
         # Créer une instance du client avec des certificats factices
         self.lnd_client = LNDClient(
-            host="127.0.0.1",
-            port=10009,
             cert_path="fake_cert.pem",
-            macaroon_path="fake_macaroon"
+            macaroon_path="fake_macaroon",
+            grpc_host="127.0.0.1:10009"
         )
+        
+        # Remplacer le stub par notre mock
+        self.lnd_client._stub = self.mock_stub
+        self.lnd_client._router_stub = self.mock_stub
     
-    def tearDown(self):
-        """Nettoyage après chaque test"""
-        self.patcher.stop()
-    
-    def test_init(self, mock_settings, mock_lnrpc):
+    def test_init(self):
         """Test de l'initialisation du client"""
-        self.assertEqual(self.lnd_client.host, "127.0.0.1")
-        self.assertEqual(self.lnd_client.port, 10009)
+        self.assertEqual(self.lnd_client.grpc_host, "127.0.0.1:10009")
         self.assertEqual(self.lnd_client.cert_path, "fake_cert.pem")
         self.assertEqual(self.lnd_client.macaroon_path, "fake_macaroon")
     
-    def test_get_node_info(self, mock_settings, mock_lnrpc):
+    def test_get_node_info(self):
         """Test de récupération des informations du nœud"""
         # Configurer le mock pour GetInfo
         mock_info = Mock()
-        mock_lnrpc.GetInfoResponse.return_value = mock_info
+        mock_ln.GetInfoResponse.return_value = mock_info
         self.mock_stub.GetInfo.return_value = mock_info
         
         # Configurer les propriétés du mock
@@ -83,11 +78,11 @@ class TestLNDClient(unittest.TestCase):
         self.assertEqual(result["chains"], ["bitcoin"])
         self.assertEqual(result["uris"], ["02778f4a4eb3a2344b9fd8ee72e7ec5f03f803e5f5273e2e1a2af508@127.0.0.1:9735"])
     
-    def test_list_channels(self, mock_settings, mock_lnrpc):
+    def test_list_channels(self):
         """Test de liste des canaux"""
         # Configurer le mock pour ListChannels
         mock_channels = Mock()
-        mock_lnrpc.ListChannelsResponse.return_value = mock_channels
+        mock_ln.ListChannelsResponse.return_value = mock_channels
         self.mock_stub.ListChannels.return_value = mock_channels
         
         # Créer un mock pour un canal
@@ -158,11 +153,11 @@ class TestLNDClient(unittest.TestCase):
         self.assertEqual(len(result_inactive), 1)
         self.assertEqual(result_inactive[0]["channel_id"], "789012")
     
-    def test_get_forwarding_history(self, mock_settings, mock_lnrpc):
+    def test_get_forwarding_history(self):
         """Test de récupération de l'historique de forwarding"""
         # Configurer le mock pour ForwardingHistory
         mock_forwarding = Mock()
-        mock_lnrpc.ForwardingHistoryResponse.return_value = mock_forwarding
+        mock_ln.ForwardingHistoryResponse.return_value = mock_forwarding
         self.mock_stub.ForwardingHistory.return_value = mock_forwarding
         
         # Créer des mocks pour les événements de forwarding
