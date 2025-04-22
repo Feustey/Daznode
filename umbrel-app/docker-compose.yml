@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - JWT_TOKEN=${JWT_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - LND_CERT_FILE=/lnd/tls.cert
+      - LND_MACAROON_FILE=/lnd/data/chain/bitcoin/mainnet/admin.macaroon
+      - LND_GRPC_HOST=umbrel.local
+      - LND_GRPC_PORT=10009
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+      - ${LND_DATA_DIR}:/lnd:ro
+    restart: unless-stopped
+
+  metrics-collector:
+    build: ./metrics
+    environment:
+      - JWT_TOKEN=${JWT_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - LND_CERT_FILE=/lnd/tls.cert
+      - LND_MACAROON_FILE=/lnd/data/chain/bitcoin/mainnet/admin.macaroon
+      - LND_GRPC_HOST=umbrel.local
+      - LND_GRPC_PORT=10009
+    volumes:
+      - ${LND_DATA_DIR}:/lnd:ro
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ${APP_DATA_DIR}/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ${APP_DATA_DIR}/prometheus/rules:/etc/prometheus/rules
+      - ${APP_DATA_DIR}/prometheus/data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - ${APP_DATA_DIR}/grafana:/var/lib/grafana
+      - ${APP_DATA_DIR}/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped 

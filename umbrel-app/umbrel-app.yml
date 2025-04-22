@@ -1,0 +1,31 @@
+manifestVersion: 1
+id: daznode
+category: Lightning
+name: DazNode
+version: "1.0.0"
+tagline: Gestionnaire de nœud Lightning avec métriques avancées
+description: >-
+  DazNode est un outil de gestion et de surveillance pour votre nœud Lightning Network.
+  Il fournit des métriques détaillées, des alertes et des visualisations pour optimiser
+  votre nœud.
+developer: Feustey
+website: https://github.com/Feustey/Daznode
+dependencies:
+  - lnd
+repo: https://github.com/Feustey/Daznode
+support: https://github.com/Feustey/Daznode/issues
+port: 8000
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+
+containers:
+  - name: app
+    image: daznode
+    port: 8000
+    data: /data
+    environment:
+      LND_CERT_FILE: "/lnd/tls.cert"
+      LND_MACAROON_FILE: "/lnd/data/chain/bitcoin/mainnet/admin.macaroon"
+      LND_GRPC_HOST: "umbrel.local"
+      LND_GRPC_PORT: "10009" 
