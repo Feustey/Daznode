@@ -112,25 +112,19 @@ class DataSourceFactory:
                         # Tester si MCP est disponible
                         mcp_service = cls.get_mcp_service()
                         if asyncio.iscoroutinefunction(mcp_service.get_network_stats):
+                            # Appel asynchrone avec gestion sécurisée
                             try:
-                                asyncio.get_event_loop().run_until_complete(
-                                    mcp_service.get_network_stats()
-                                )
-                                return cls.get_data_source("mcp")
-                            except Exception as e:
-                                logger.warning(
-                                    f"MCP indisponible: {e}, utilisation de la source locale"
-                                )
-                                return cls.get_data_source("local")
+                                loop = asyncio.get_event_loop()
+                            except RuntimeError:
+                                # Création d'une nouvelle boucle si nécessaire
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+                            
+                            loop.run_until_complete(mcp_service.get_network_stats())
+                            return MCPDataSource(mcp_service=mcp_service)
                         else:
-                            try:
-                                mcp_service.get_network_stats()
-                                return cls.get_data_source("mcp")
-                            except Exception as e:
-                                logger.warning(
-                                    f"MCP indisponible: {e}, utilisation de la source locale"
-                                )
-                                return cls.get_data_source("local")
+                            mcp_service.get_network_stats()
+                            return MCPDataSource(mcp_service=mcp_service)
                     except Exception as e:
                         logger.warning(
                             f"MCP indisponible: {e}, utilisation de la source locale"
@@ -138,49 +132,35 @@ class DataSourceFactory:
                         return cls.get_data_source("local")
                 else:
                     return cls.get_data_source("local")
-            else:
-                # Utiliser le health manager pour choisir la meilleure source
-                if (settings.MCP_API_KEY and settings.MCP_API_URL and 
-                    cls._health_manager.is_source_available("mcp")):
-                    return cls.get_data_source("mcp")
-                elif cls._health_manager.is_source_available("local"):
-                    return cls.get_data_source("local")
-                else:
-                    # Fallback sur la source locale même si elle n'est pas disponible
-                    # (elle utilisera son cache si disponible)
-                    logger.warning(
-                        "Aucune source en ligne, utilisation du cache local"
-                    )
-                    return cls.get_data_source("local")
-        
-        # Vérifier si l'instance existe déjà
-        if source_type in cls._sources:
-            return cls._sources[source_type]
-        
-        # Créer la source de données
-        if source_type == "local":
-            source = LocalDataSource(
-                lnd_client=cls._lnd_client or cls.get_lnd_client(),
-                lnrouter_client=cls._lnrouter_client or cls.get_lnrouter_client()
-            )
-        elif source_type == "mcp":
-            source = MCPDataSource(
-                mcp_service=cls._mcp_service or cls.get_mcp_service()
-            )
         else:
-            logger.warning(
-                f"Type de source de données inconnu: {source_type}, "
-                "utilisation de 'local'"
-            )
-            source = LocalDataSource(
-                lnd_client=cls._lnd_client or cls.get_lnd_client(),
-                lnrouter_client=cls._lnrouter_client or cls.get_lnrouter_client()
-            )
-        
-        # Stocker l'instance pour réutilisation
-        cls._sources[source_type] = source
-        
-        return source
+            # Vérifier si l'instance existe déjà
+            if source_type in cls._sources:
+                return cls._sources[source_type]
+            
+            # Créer la source de données
+            if source_type == "local":
+                source = LocalDataSource(
+                    lnd_client=cls._lnd_client or cls.get_lnd_client(),
+                    lnrouter_client=cls._lnrouter_client or cls.get_lnrouter_client()
+                )
+            elif source_type == "mcp":
+                source = MCPDataSource(
+                    mcp_service=cls._mcp_service or cls.get_mcp_service()
+                )
+            else:
+                logger.warning(
+                    f"Type de source de données inconnu: {source_type}, "
+                    "utilisation de 'local'"
+                )
+                source = LocalDataSource(
+                    lnd_client=cls._lnd_client or cls.get_lnd_client(),
+                    lnrouter_client=cls._lnrouter_client or cls.get_lnrouter_client()
+                )
+            
+            # Stocker l'instance pour réutilisation
+            cls._sources[source_type] = source
+            
+            return source
     
     @classmethod
     async def shutdown(cls):

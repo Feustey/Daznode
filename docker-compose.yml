@@ -1,8 +1,8 @@
-version: '3.9'
-
 services:
   metrics-collector:
-    build: ./metrics
+    build:
+      context: ./metrics
+      dockerfile: Dockerfile
     environment:
       - JWT_TOKEN=${JWT_TOKEN}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}

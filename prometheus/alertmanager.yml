@@ -11,7 +11,7 @@ route:
 receivers:
 - name: 'telegram'
   webhook_configs:
-  - url: 'https://api.telegram.org/bot7676575630:AAEE4ds5F9XAvqU1JtAGY-_BFN0KDSAkvDQ/sendMessage?chat_id=REMPLACER_PAR_VOTRE_CHAT_ID&parse_mode=Markdown'
+  - url: 'https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&parse_mode=Markdown'
     send_resolved: true
     http_config:
       basic_auth:
