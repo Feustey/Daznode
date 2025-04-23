@@ -25,7 +25,7 @@ export default function NavBar() {
   const pathname = usePathname();
 
   return (
-    <nav className="bg-card-dark border-b border-gray-800">
+    <nav className="bg-card border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
@@ -43,8 +43,8 @@ export default function NavBar() {
                       className={cn(
                         'px-3 py-2 rounded-md text-sm font-medium transition-colors',
                         isActive
-                          ? 'bg-gray-900 text-white'
-                          : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                          ? 'bg-primary-700 text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-primary-100/10 hover:text-foreground'
                       )}
                     >
                       {item.name}
@@ -59,7 +59,7 @@ export default function NavBar() {
               <Link href="/settings">
                 <button
                   type="button"
-                  className="rounded-full p-1 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
+                  className="rounded-full p-1 hover:bg-primary-100/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-primary-800 focus:ring-primary"
                 >
                   <Cog6ToothIcon className="h-6 w-6" aria-hidden="true" />
                 </button>

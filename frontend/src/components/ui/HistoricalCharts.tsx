@@ -6,7 +6,23 @@ interface HistoricalChartsProps {
 }
 
 export default function HistoricalCharts({ nodeData }: HistoricalChartsProps) {
-  const { historicalData } = nodeData;
+  // Vérifier si les données historiques existent
+  const historicalData = nodeData?.historicalData || {
+    channels: { data: [] },
+    capacity: { data: [] }
+  };
+
+  // Si aucune donnée n'est disponible, afficher un message
+  if (!historicalData.channels.data?.length || !historicalData.capacity.data?.length) {
+    return (
+      <div className="grid grid-cols-1 gap-6">
+        <div className="card p-4">
+          <h3 className="text-xl font-medium">Données historiques</h3>
+          <p className="text-gray-400 mt-2">Aucune donnée historique disponible pour ce nœud</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

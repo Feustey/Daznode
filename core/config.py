@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     # SOURCE DE DONNÉES
     # Options: "local", "mcp", "auto"
+    # Par défaut, on utilise 'auto'
     DEFAULT_DATA_SOURCE: str = "auto"
     
     # MCP API CONFIGURATION
@@ -82,7 +83,9 @@ class Settings(BaseSettings):
     METRICS_COLLECTION_INTERVAL_HOURS: int = 24
     METRICS_HISTORY_DAYS: int = 90
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
+    model_config = SettingsConfigDict(case_sensitive=True, extra="ignore")
 
 
-settings = Settings() 
+settings = Settings()
+# Ignorer toute clé MCP_API_KEY provenant de l'environnement pour la sélection par défaut
+settings.MCP_API_KEY = None 

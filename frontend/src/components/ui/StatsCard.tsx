@@ -25,7 +25,7 @@ export default function StatsCard({
         {tooltip && (
           <Tooltip content={tooltip} position="top">
             <span className="ml-1 cursor-help">
-              <InformationCircleIcon className="h-4 w-4 text-gray-400" />
+              <InformationCircleIcon className="h-4 w-4 text-muted-foreground" />
             </span>
           </Tooltip>
         )}
@@ -34,7 +34,7 @@ export default function StatsCard({
       <div className="flex items-baseline">
         <span className="stat-value">{value}</span>
         {subValue && (
-          <span className="text-xs text-gray-400 ml-1">{subValue}</span>
+          <span className="text-xs text-muted-foreground ml-1">{subValue}</span>
         )}
       </div>
       

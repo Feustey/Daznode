@@ -85,7 +85,7 @@ export default function PotentialPeersRanking() {
             });
           
           // Trier par score global
-          const sortedPeers = potentialPeers.sort((a, b) => b.overallScore - a.overallScore);
+          const sortedPeers = potentialPeers.sort((a: PotentialPeer, b: PotentialPeer) => b.overallScore - a.overallScore);
           
           setPeers(sortedPeers);
         }

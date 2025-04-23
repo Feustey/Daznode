@@ -41,9 +41,9 @@ export function formatDuration(durationString: string): string {
  * @param percentChange - Pourcentage de variation
  */
 export function getChangeColorClass(percentChange: number): string {
-  if (percentChange > 0) return 'text-green-500';
-  if (percentChange < 0) return 'text-red-500';
-  return 'text-gray-400';
+  if (percentChange > 0) return 'text-emerald-500 dark:text-emerald-400';
+  if (percentChange < 0) return 'text-destructive';
+  return 'text-muted-foreground';
 }
 
 /**

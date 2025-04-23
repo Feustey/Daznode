@@ -4,6 +4,9 @@ import { NodeData } from '../types/node';
 // Définir l'URL de base de l'API
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
+// En mode développement, utiliser toujours les données mockées
+const USE_MOCK_DATA = true; // process.env.NODE_ENV === 'development';
+
 // Créer une instance axios avec configuration
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -19,6 +22,12 @@ interface ApiError {
 
 // Récupérer les données d'un nœud par pubkey
 export async function getNodeData(pubkey: string): Promise<NodeData> {
+  // En mode développement, retourner directement les données mockées
+  if (USE_MOCK_DATA) {
+    console.log('Utilisation des données mockées pour le développement');
+    return getMockNodeData(pubkey);
+  }
+
   try {
     const response = await apiClient.get<NodeData>(`/node/${pubkey}`);
     return response.data;
@@ -26,7 +35,7 @@ export async function getNodeData(pubkey: string): Promise<NodeData> {
     const axiosError = error as AxiosError;
     console.error('Erreur lors de la récupération des données du nœud:', axiosError.message);
     
-    // En l'absence d'API réelle, retournons des données mockées pour Feustey
+    // En cas d'erreur, retourner des données mockées
     return getMockNodeData(pubkey);
   }
 }

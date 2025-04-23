@@ -2,31 +2,127 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ========== THEME ROOT COLORS ========== */
 :root {
-  --background-dark: #0F0F14;
-  --card-dark: #1F1F28;
-  --accent-blue: #3B82F6;
-  --accent-red: #EF4444;
-  --text-primary: #FFFFFF;
-  --text-secondary: #9CA3AF;
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --primary-50: 221 100% 97%;
+  --primary-100: 221 95% 90%;
+  --primary-200: 221 90% 80%;
+  --primary-300: 221 85% 70%;
+  --primary-400: 221 80% 60%;
+  --primary-500: 221 75% 50%;
+  --primary-600: 221 70% 40%;
+  --primary-700: 221 65% 30%;
+  --primary-800: 221 60% 20%;
+  --primary-900: 221 55% 10%;
+
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --secondary-50: 210 40% 98%;
+  --secondary-100: 210 40% 95%;
+  --secondary-200: 210 40% 90%;
+  --secondary-300: 210 40% 80%;
+  --secondary-400: 210 40% 70%;
+  --secondary-500: 210 40% 60%;
+  --secondary-600: 210 40% 50%;
+  --secondary-700: 210 40% 40%;
+  --secondary-800: 210 40% 30%;
+  --secondary-900: 210 40% 20%;
+
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --accent-50: 210 40% 98%;
+  --accent-100: 210 40% 95%;
+  --accent-200: 210 40% 90%;
+  --accent-300: 210 40% 80%;
+  --accent-400: 210 40% 70%;
+  --accent-500: 210 40% 60%;
+  --accent-600: 210 40% 50%;
+  --accent-700: 210 40% 40%;
+  --accent-800: 210 40% 30%;
+  --accent-900: 210 40% 20%;
+
+  --destructive: 0 100% 50%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 221.2 83.2% 53.3%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --card-rgb: 255, 255, 255;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+
+  --radius: 0.5rem;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+
+  --animation-duration: 0.5s;
 }
 
-body {
-  background-color: var(--background-dark);
-  color: var(--text-primary);
+/* ========== DARK MODE ========== */
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --card-rgb: 20, 20, 20;
+
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 210 40% 98%;
+
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground;
+  }
 }
 
 @layer components {
   .nav-item {
-    @apply px-4 py-2 font-medium hover:text-accent-blue transition-colors;
+    @apply px-4 py-2 font-medium hover:text-primary transition-colors;
   }
   
   .nav-item-active {
-    @apply px-4 py-2 font-medium text-accent-blue border-b-2 border-accent-blue;
+    @apply px-4 py-2 font-medium text-primary border-b-2 border-primary;
   }
   
   .card {
-    @apply bg-card-dark rounded-lg shadow-md p-4;
+    @apply bg-card rounded-lg shadow p-4;
   }
   
   .stat-value {
@@ -34,6 +130,6 @@ body {
   }
   
   .stat-label {
-    @apply text-sm text-text-secondary;
+    @apply text-sm text-muted-foreground;
   }
 }
