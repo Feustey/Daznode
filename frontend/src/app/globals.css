@@ -72,28 +72,32 @@
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 
   --animation-duration: 0.5s;
+
+  --gradient-start: #1a237e;
+  --gradient-middle: #4a148c;
+  --gradient-end: #311b92;
 }
 
 /* ========== DARK MODE ========== */
 .dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
+  --background: linear-gradient(135deg, var(--gradient-start), var(--gradient-middle), var(--gradient-end));
+  --foreground: #ffffff;
 
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --card-rgb: 20, 20, 20;
+  --card: rgba(255, 255, 255, 0.05);
+  --card-foreground: #ffffff;
+  --card-rgb: 255, 255, 255;
 
   --popover: 222.2 84% 4.9%;
   --popover-foreground: 210 40% 98%;
 
-  --primary: 210 40% 98%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
 
   --secondary: 217.2 32.6% 17.5%;
   --secondary-foreground: 210 40% 98%;
 
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 210 40% 98%;
+  --muted: rgba(255, 255, 255, 0.7);
+  --muted-foreground: rgba(255, 255, 255, 0.5);
 
   --accent: 217.2 32.6% 17.5%;
   --accent-foreground: 210 40% 98%;
@@ -101,7 +105,7 @@
   --destructive: 0 63% 31%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 217.2 32.6% 17.5%;
+  --border: rgba(255, 255, 255, 0.1);
   --input: 217.2 32.6% 17.5%;
   --ring: 212.7 26.8% 83.9%;
 }
@@ -109,6 +113,8 @@
 @layer base {
   body {
     @apply bg-background text-foreground;
+    background: var(--background);
+    color: var(--foreground);
   }
 }
 
@@ -132,4 +138,52 @@
   .stat-label {
     @apply text-sm text-muted-foreground;
   }
+}
+
+/* Style pour les grands titres */
+.hero-title {
+  @apply text-6xl md:text-7xl font-bold;
+  background: linear-gradient(to right, #60A5FA, #A78BFA, #F472B6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Style pour les sous-titres */
+.hero-subtitle {
+  @apply text-2xl md:text-3xl text-muted;
+}
+
+/* Style pour les boutons principaux */
+.btn-primary {
+  @apply px-6 py-3 bg-primary text-primary-foreground rounded-lg 
+         font-medium transition-all duration-200
+         hover:bg-opacity-90 hover:scale-105;
+  background: linear-gradient(135deg, #4F46E5, #7C3AED);
+}
+
+/* Style pour les cartes */
+.glass-card {
+  @apply rounded-xl backdrop-blur-md bg-card 
+         border border-border shadow-xl;
+}
+
+/* Animation de fade-in pour les éléments */
+.fade-in {
+  @apply opacity-0 animate-[fadeIn_0.5s_ease-in_forwards];
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Style pour la grille de contenu */
+.content-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6;
+}
+
+/* Style pour les sections */
+.section {
+  @apply py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto;
 }
